@@ -1,0 +1,21 @@
+# Build output
+/app/bin/
+
+# Test and coverage output
+*.test
+*.out
+coverage.*
+
+# Local environment: secrets live here; env.example is the template
+.env
+.env.*
+
+# Local runtime data (dev bucket, job workspaces)
+/.data/
+
+# OS and editors
+.DS_Store
+.idea/
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json

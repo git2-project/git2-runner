@@ -1,0 +1,6 @@
+# Store text with LF everywhere, whatever core.autocrlf says on the
+# contributor's machine. Containers and CI are Linux.
+* text=auto eol=lf
+
+# Generated protobuf code: collapsed in GitHub diffs.
+app/gen/** linguist-generated=true

@@ -1,0 +1,74 @@
+services:
+
+  # ── Go toolchain (VS Code attaches here) ──────────────────────────────
+  # Postgres is not a service here: dev uses the team's shared Supabase project
+  # through POSTGRES_DSN in ../.env. Its schema comes from the git2 repo's
+  # migrations, never from this repo.
+  app:
+    build:
+      context: ..
+      dockerfile: .devcontainer/Dockerfile
+    init: true
+    volumes:
+      - ..:/workspace:cached
+      - go-modules:/go/pkg/mod
+      - go-build:/root/.cache/go-build
+    command: sleep infinity
+    depends_on:
+      docker:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    env_file:
+      - path: ../.env
+        required: false
+    # .env is tuned for running on the host. Inside the container, job
+    # containers go to the sibling daemon below and Redis is reached by its
+    # compose service name.
+    environment:
+      DOCKER_HOST: tcp://docker:2375
+      REDIS_ADDR: redis:6379
+
+  # ── Redis (stands in for the instance's shared Redis) ─────────────────
+  # Same image as the git2 repo's devcontainer. Not published on the host:
+  # everything that talks to it runs in `app`, and an unpublished port cannot
+  # collide with another stack's Redis.
+  redis:
+    image: redis:7.4-alpine
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # ── Docker daemon for job containers (Docker-in-Docker) ───────────────
+  # The runner starts every CI job in its own container. A separate daemon
+  # keeps test jobs off the host's Docker and looks like a real build host.
+  # Because it is a different machine from `app`, the runner must not
+  # bind-mount local paths into job containers; it uses volumes and copies
+  # files through the API, which is also what works against a remote daemon.
+  #
+  # Dev only: privileged, and plain TCP without TLS. The port is not published,
+  # so only containers on this compose network can reach it.
+  docker:
+    image: docker:29-dind
+    privileged: true
+    restart: unless-stopped
+    environment:
+      # Empty turns TLS off; the entrypoint then listens on tcp://0.0.0.0:2375.
+      DOCKER_TLS_CERTDIR: ""
+    volumes:
+      - docker-data:/var/lib/docker
+    healthcheck:
+      test: ["CMD", "docker", "info"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+
+volumes:
+  go-modules:
+  go-build:
+  # Images pulled by test jobs survive a container rebuild.
+  docker-data:

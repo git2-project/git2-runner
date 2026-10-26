@@ -6,21 +6,41 @@
 
 ## How it fits
 
-`ci-svc` in [git2](https://github.com/git2-project/git2) reads `.git2-ci.yml`, plans the pipeline and queues jobs. A runner:
+This repo holds both halves of git2's CI. `ci-svc` reads `.git2-ci.yml`, plans the pipeline and queues jobs. A runner (`git2-runner`):
 
-1. Registers with the instance (runners are managed from the **Admin** plane).
+1. Registers with ci-svc (runners are managed from the **Admin** plane).
 2. Picks up jobs from the queue.
 3. Runs each job's steps inside a container on the build host.
 4. Streams logs back and uploads artifacts and caches to the instance bucket.
 5. Reports the result, which ends up as a `pipeline.finished` event.
 
-Run as many runners as you have build hosts; they only need network access to the git2 instance.
+Run as many runners as you have build hosts; they only need network access to ci-svc. The design and its decisions are in [docs/design/plan.md](docs/design/plan.md) and [docs/decisions/](docs/decisions/).
+
+## What lives here
+
+| Path | What it is |
+| :--- | :--- |
+| `app/` | The Go module (`github.com/git2-project/git2-runner/app`): all code |
+| `docs/` | Docs for the other git2 lanes: [API reference](docs/api/), [version notes](docs/version_notes/overview.md), [plan and assumptions](docs/design/) |
+| `.devcontainer/` | Go 1.26, psql, a Redis standing in for the shared one, and a Docker-in-Docker daemon where job containers run |
 
 ## Status
 
 Early development, on the 9-week plan in the [org README](https://github.com/git2-project). Nothing here is ready to run yet; build and test commands will land in this file and in `CLAUDE.md` as the code does.
 
+## Development
+
+Open the repo in the devcontainer (VS Code → *Reopen in Container*). Job containers run on its own Docker daemon (`DOCKER_HOST=tcp://docker:2375`), never on your host's Docker. The database is the team's shared Supabase project (dev only); its schema comes from the git2 repo's migrations.
+
+```bash
+cp env.example .env    # fill in POSTGRES_DSN (the same as in the git2 repo)
+cd app && go test ./...
+```
+
 ## Contributing
 
 - Work stays inside this repo's scope. Changes to shared contracts go through a PR approved by every affected owner.
+- Nobody pushes to `main`: every change arrives as a pull request.
 - Every PR ships with tests and needs one human review before merge.
+- A change that other lanes can notice ships with a doc: [docs/api/](docs/api/) is updated and a [version note](docs/version_notes/overview.md) is added.
+- Database tables are created only by migrations in the [git2](https://github.com/git2-project/git2) repo.
