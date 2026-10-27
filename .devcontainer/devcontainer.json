@@ -1,0 +1,43 @@
+{
+  "name": "git2-runner",
+
+  "dockerComposeFile": "docker-compose.yml",
+  "service": "app",
+  "workspaceFolder": "/workspace",
+
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "golang.Go",
+        "bufbuild.vscode-buf",
+        "ms-azuretools.vscode-docker",
+        "ms-vscode.makefile-tools",
+        "Anthropic.claude-code"
+      ],
+      "settings": {
+        "go.useLanguageServer": true,
+        "go.formatTool": "goimports",
+        "[go]": {
+          "editor.formatOnSave": true,
+          "editor.codeActionsOnSave": { "source.organizeImports": "explicit" }
+        },
+        // The Go module root is app/.
+        "terminal.integrated.cwd": "/workspace/app",
+        // Forward only ports a container process actually listens on, not every
+        // localhost:PORT printed in a terminal.
+        "remote.autoForwardPortsSource": "process"
+      }
+    }
+  },
+
+  "postCreateCommand": "cd /workspace/app && go mod download",
+
+  "remoteUser": "root",
+
+  // Nothing serves yet. Add ci-svc's gRPC ports here when it does.
+  // The Docker daemon and Redis are sibling compose services, reached as
+  // docker:2375 and redis:6379.
+  "forwardPorts": [],
+
+  "shutdownAction": "stopCompose"
+}
