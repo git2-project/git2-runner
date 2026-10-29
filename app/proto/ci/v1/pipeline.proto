@@ -1,0 +1,452 @@
+// Package ci.v1 is the gRPC API of ci-svc, the CI service of git2.
+//
+// ci-svc reads .git2-ci.yml, turns a push into a pipeline of jobs, queues
+// the jobs for runners and keeps their status and logs. It serves two
+// ports:
+//   - The internal port: PipelineService, RunnerAdminService and
+//     SecretService. Only other git2 services (dash-api, admin-api, the
+//     event relay) reach it.
+//   - The runner port: RunnerService only. Build hosts reach it, and every
+//     call except RegisterRunner carries a runner token.
+//
+// Conventions for the whole package:
+//   - IDs are UUIDs in canonical text form ("3f2b8c1e-..."). A malformed ID
+//     is INVALID_ARGUMENT, not NOT_FOUND.
+//   - Repository and user IDs are the ones issued by git-svc and auth-svc.
+//     ci-svc stores IDs only, never names.
+//   - On the internal port ci-svc does not authenticate or authorize
+//     callers. The caller (dash-api, admin-api) checks the user's
+//     permissions before calling.
+//   - Errors use standard gRPC codes: INVALID_ARGUMENT, NOT_FOUND,
+//     ALREADY_EXISTS, FAILED_PRECONDITION, UNAUTHENTICATED (runner port
+//     only), RESOURCE_EXHAUSTED, UNAVAILABLE (retry later) and INTERNAL.
+//     INTERNAL errors never contain SQL, paths or other internal details.
+//   - List RPCs paginate per Google AIP-158.
+//   - Domain events (PipelineFinished, ...) are defined in events.proto.
+//
+// Planned, not available yet:
+//   - RetryJob (W4-W5).
+//   - Artifacts: ListArtifacts, DownloadArtifact and the runner's
+//     UploadArtifact (W6-W7).
+//   - Secrets scoped to an owner (user or organization).
+syntax = "proto3";
+
+package ci.v1;
+
+import "google/protobuf/timestamp.proto";
+
+// PipelineService starts pipelines and reports their status and logs.
+//
+// Callers: the event relay (a push starts a pipeline) and dash-api (the
+// pipeline views and the "run pipeline" button).
+service PipelineService {
+  // TriggerPipeline starts a pipeline for one commit of a repository.
+  //
+  // ci-svc reads .git2-ci.yml at commit_sha and creates one job per job in
+  // the file. Jobs run stage by stage: a stage starts when every job of the
+  // stage before it succeeded.
+  //
+  // The call is idempotent on idempotency_key: calling again with the same
+  // key returns the pipeline created the first time, with created = false.
+  // This makes at-least-once event delivery safe.
+  //
+  // A .git2-ci.yml that is invalid still creates a pipeline: it has no
+  // jobs, status FAILED, and error_message says what is wrong, so the user
+  // sees the problem next to the commit.
+  //
+  // Errors:
+  //   - INVALID_ARGUMENT: a field breaks the rules on TriggerPipelineRequest.
+  //   - NOT_FOUND: the commit has no .git2-ci.yml. This is normal for
+  //     repositories without CI; callers should not retry.
+  //   - ALREADY_EXISTS: idempotency_key was used before for a different
+  //     repository, ref or commit.
+  //   - UNAVAILABLE: ci-svc could not read the file from git-svc. Retry.
+  rpc TriggerPipeline(TriggerPipelineRequest) returns (TriggerPipelineResponse);
+
+  // GetPipeline returns a pipeline with its jobs, grouped by stage.
+  //
+  // Errors:
+  //   - INVALID_ARGUMENT: id is not a UUID.
+  //   - NOT_FOUND: no pipeline has this ID.
+  rpc GetPipeline(GetPipelineRequest) returns (GetPipelineResponse);
+
+  // ListPipelines returns one page of a repository's pipelines, newest
+  // first, each with its jobs.
+  //
+  // A repository with no pipelines gets an empty list, not an error.
+  //
+  // Errors:
+  //   - INVALID_ARGUMENT: repository_id is not a UUID, page_size is
+  //     negative, or page_token is invalid or was issued for another
+  //     repository_id or ref.
+  rpc ListPipelines(ListPipelinesRequest) returns (ListPipelinesResponse);
+
+  // CancelPipeline cancels every job of a pipeline that has not finished.
+  //
+  // Jobs that wait in the queue are canceled at once. Running jobs are
+  // stopped by their runner within about 15 seconds and then show
+  // CANCELED. Canceling a finished pipeline changes nothing and is not an
+  // error.
+  //
+  // Errors:
+  //   - INVALID_ARGUMENT: id is not a UUID.
+  //   - NOT_FOUND: no pipeline has this ID.
+  rpc CancelPipeline(CancelPipelineRequest) returns (CancelPipelineResponse);
+
+  // GetJob returns one job.
+  //
+  // Errors:
+  //   - INVALID_ARGUMENT: id is not a UUID.
+  //   - NOT_FOUND: no job has this ID.
+  rpc GetJob(GetJobRequest) returns (GetJobResponse);
+
+  // StreamJobLog sends a job's log from a byte offset on.
+  //
+  // Without follow, the stream sends the log as it is now and ends. With
+  // follow, it stays open and sends new output as the runner reports it,
+  // usually well under a second after the job prints it. It ends when the
+  // job has finished and every byte was sent.
+  //
+  // The log is raw bytes as the job printed them, usually UTF-8 text with
+  // ANSI colour codes. A message may end in the middle of a UTF-8
+  // character. Secret values are already replaced by "[MASKED]".
+  //
+  // Errors:
+  //   - INVALID_ARGUMENT: job_id is not a UUID, or offset is negative.
+  //   - NOT_FOUND: no job has this ID.
+  rpc StreamJobLog(StreamJobLogRequest) returns (stream StreamJobLogResponse);
+
+  // ValidateConfig checks a .git2-ci.yml without running anything.
+  //
+  // Use it for an editor or a "lint" button. TriggerPipeline applies the
+  // same rules.
+  //
+  // Errors:
+  //   - INVALID_ARGUMENT: content is larger than 256 KiB.
+  rpc ValidateConfig(ValidateConfigRequest) returns (ValidateConfigResponse);
+}
+
+// PipelineStatus is the state of a pipeline.
+//
+// PENDING and RUNNING are not final; the others are, and a pipeline in a
+// final state never changes again.
+enum PipelineStatus {
+  // Never used.
+  PIPELINE_STATUS_UNSPECIFIED = 0;
+  // No job has started yet.
+  PIPELINE_STATUS_PENDING = 1;
+  // At least one job started and not every job has finished.
+  PIPELINE_STATUS_RUNNING = 2;
+  // Every job succeeded.
+  PIPELINE_STATUS_SUCCESS = 3;
+  // A job failed, or .git2-ci.yml is invalid (see Pipeline.error_message).
+  PIPELINE_STATUS_FAILED = 4;
+  // The pipeline was canceled before it finished.
+  PIPELINE_STATUS_CANCELED = 5;
+}
+
+// PipelineTrigger says what started a pipeline.
+enum PipelineTrigger {
+  // Never used.
+  PIPELINE_TRIGGER_UNSPECIFIED = 0;
+  // A push to the repository.
+  PIPELINE_TRIGGER_PUSH = 1;
+  // A user started it by hand, for example from Dash.
+  PIPELINE_TRIGGER_MANUAL = 2;
+}
+
+// JobStatus is the state of a job.
+//
+// CREATED, PENDING and RUNNING are not final; the others are.
+enum JobStatus {
+  // Never used.
+  JOB_STATUS_UNSPECIFIED = 0;
+  // Waiting for the jobs of an earlier stage to finish.
+  JOB_STATUS_CREATED = 1;
+  // In the queue, waiting for a runner.
+  JOB_STATUS_PENDING = 2;
+  // A runner is running it.
+  JOB_STATUS_RUNNING = 3;
+  // The script exited with code 0.
+  JOB_STATUS_SUCCESS = 4;
+  // The job failed; failure_reason says why.
+  JOB_STATUS_FAILED = 5;
+  // The job was canceled.
+  JOB_STATUS_CANCELED = 6;
+  // The job never ran because a job of an earlier stage failed.
+  JOB_STATUS_SKIPPED = 7;
+}
+
+// JobFailureReason says why a job failed.
+enum JobFailureReason {
+  // The job did not fail.
+  JOB_FAILURE_REASON_UNSPECIFIED = 0;
+  // The script exited with a non-zero code (see Job.exit_code).
+  JOB_FAILURE_REASON_SCRIPT_FAILURE = 1;
+  // The job ran longer than its timeout.
+  JOB_FAILURE_REASON_TIMEOUT = 2;
+  // The runner stopped reporting, for example because its host went down,
+  // or the job was running when the instance was restored from a backup.
+  JOB_FAILURE_REASON_RUNNER_LOST = 3;
+  // The runner could not pull the job's image.
+  JOB_FAILURE_REASON_IMAGE_PULL_FAILURE = 4;
+  // Something on the runner's host failed, for example its Docker daemon.
+  JOB_FAILURE_REASON_RUNNER_SYSTEM_FAILURE = 5;
+}
+
+// Pipeline is one run of .git2-ci.yml for one commit.
+message Pipeline {
+  // Unique ID of the pipeline, assigned by ci-svc. IDs sort by creation
+  // time.
+  string id = 1;
+
+  // ID of the repository, as issued by git-svc.
+  string repository_id = 2;
+
+  // Full name of the ref, for example "refs/heads/main" or
+  // "refs/tags/v1.0.0".
+  string ref = 3;
+
+  // The commit the pipeline runs on, as a lowercase hex object ID.
+  string commit_sha = 4;
+
+  // Current status.
+  PipelineStatus status = 5;
+
+  // What started the pipeline.
+  PipelineTrigger trigger = 6;
+
+  // ID of the user who pushed or pressed "run", as issued by auth-svc.
+  // Empty if unknown.
+  string triggered_by_id = 7;
+
+  // Why the pipeline failed before any job ran, for example a .git2-ci.yml
+  // error with its line number. Empty otherwise. Safe to show to users.
+  string error_message = 8;
+
+  // The stages in the order they run, each with its jobs sorted by name.
+  // Empty when error_message is set.
+  repeated Stage stages = 9;
+
+  // When the pipeline was created.
+  google.protobuf.Timestamp created_at = 10;
+
+  // When its first job started. Unset while no job has started.
+  google.protobuf.Timestamp started_at = 11;
+
+  // When it reached a final status. Unset until then.
+  google.protobuf.Timestamp finished_at = 12;
+
+  // When its status or any of its jobs last changed.
+  google.protobuf.Timestamp updated_at = 13;
+}
+
+// Stage is a group of jobs that run in parallel. A stage starts when every
+// job of the stage before it succeeded.
+message Stage {
+  // Name of the stage, as in .git2-ci.yml.
+  string name = 1;
+
+  // Jobs of the stage, sorted by name.
+  repeated Job jobs = 2;
+}
+
+// Job is one job of a pipeline: a script that runs in one container.
+message Job {
+  // Unique ID of the job, assigned by ci-svc.
+  string id = 1;
+
+  // ID of the pipeline the job belongs to.
+  string pipeline_id = 2;
+
+  // Name of the job, unique within its pipeline, as in .git2-ci.yml.
+  string name = 3;
+
+  // Name of the job's stage.
+  string stage = 4;
+
+  // Current status.
+  JobStatus status = 5;
+
+  // Why the job failed. UNSPECIFIED unless status is FAILED.
+  JobFailureReason failure_reason = 6;
+
+  // Exit code of the script. Unset until the script has exited, and unset
+  // when the job failed for another reason (timeout, lost runner, ...).
+  optional int32 exit_code = 7;
+
+  // ID of the runner that took the job. Empty while it waits.
+  string runner_id = 8;
+
+  // Container image the job runs in, as in .git2-ci.yml.
+  string image = 9;
+
+  // Size of the log so far, in bytes.
+  int64 log_size = 10;
+
+  // When the job was created.
+  google.protobuf.Timestamp created_at = 11;
+
+  // When a runner took it. Unset until then.
+  google.protobuf.Timestamp started_at = 12;
+
+  // When it reached a final status. Unset until then.
+  google.protobuf.Timestamp finished_at = 13;
+}
+
+// TriggerPipelineRequest is the input of TriggerPipeline.
+message TriggerPipelineRequest {
+  // ID of the repository, as issued by git-svc. Required.
+  string repository_id = 1;
+
+  // Full name of the branch or tag: "refs/heads/<branch>" or
+  // "refs/tags/<tag>", at most 255 bytes. Required.
+  string ref = 2;
+
+  // Commit to run, as 40 (SHA-1) or 64 (SHA-256) lowercase hex characters.
+  // Required.
+  string commit_sha = 3;
+
+  // What started the pipeline. Required.
+  PipelineTrigger trigger = 4;
+
+  // ID of the user who pushed or pressed "run". Optional; empty or a UUID.
+  string triggered_by_id = 5;
+
+  // Makes the call idempotent: one key, one pipeline. 1 to 200 printable
+  // ASCII characters. Required.
+  //   - For a push, use "<event_id>:<ref>" from git.v1.RepositoryPushed, so
+  //     a redelivered event does not start a second pipeline.
+  //   - For a manual run, generate a UUID when the user clicks, and reuse
+  //     it when you retry the call.
+  string idempotency_key = 6;
+}
+
+// TriggerPipelineResponse is the output of TriggerPipeline.
+message TriggerPipelineResponse {
+  // The pipeline for this idempotency_key.
+  Pipeline pipeline = 1;
+
+  // True if this call created the pipeline, false if it already existed.
+  bool created = 2;
+}
+
+// GetPipelineRequest is the input of GetPipeline.
+message GetPipelineRequest {
+  // ID of the pipeline. Required.
+  string id = 1;
+}
+
+// GetPipelineResponse is the output of GetPipeline.
+message GetPipelineResponse {
+  // The pipeline, with its jobs.
+  Pipeline pipeline = 1;
+}
+
+// ListPipelinesRequest is the input of ListPipelines.
+message ListPipelinesRequest {
+  // ID of the repository. Required.
+  string repository_id = 1;
+
+  // Only pipelines for this full ref name, for example "refs/heads/main".
+  // Empty means every ref.
+  string ref = 2;
+
+  // Maximum number of pipelines to return. 0 means the default of 20.
+  // Values above 100 are treated as 100. Negative values are rejected.
+  int32 page_size = 3;
+
+  // Token from a previous response's next_page_token, to get the next
+  // page. Empty for the first page. Tokens are opaque, and only valid with
+  // the same repository_id and ref.
+  string page_token = 4;
+}
+
+// ListPipelinesResponse is the output of ListPipelines.
+message ListPipelinesResponse {
+  // Pipelines on this page, newest first, each with its jobs.
+  repeated Pipeline pipelines = 1;
+
+  // Token for the next page. Empty if this is the last page.
+  string next_page_token = 2;
+}
+
+// CancelPipelineRequest is the input of CancelPipeline.
+message CancelPipelineRequest {
+  // ID of the pipeline. Required.
+  string id = 1;
+}
+
+// CancelPipelineResponse is the output of CancelPipeline.
+message CancelPipelineResponse {
+  // The pipeline after the cancel. Running jobs may still show RUNNING
+  // until their runner has stopped them.
+  Pipeline pipeline = 1;
+}
+
+// GetJobRequest is the input of GetJob.
+message GetJobRequest {
+  // ID of the job. Required.
+  string id = 1;
+}
+
+// GetJobResponse is the output of GetJob.
+message GetJobResponse {
+  // The job.
+  Job job = 1;
+}
+
+// StreamJobLogRequest is the input of StreamJobLog.
+message StreamJobLogRequest {
+  // ID of the job. Required.
+  string job_id = 1;
+
+  // Byte offset to start from. 0 means the start of the log. To resume
+  // after a broken connection, pass the offset of the last message plus
+  // the length of its data.
+  int64 offset = 2;
+
+  // Keep the stream open until the job has finished.
+  bool follow = 3;
+}
+
+// StreamJobLogResponse is one piece of a job's log.
+message StreamJobLogResponse {
+  // Byte offset of the first byte of data within the log.
+  int64 offset = 1;
+
+  // Log bytes. Never empty.
+  bytes data = 2;
+}
+
+// ValidateConfigRequest is the input of ValidateConfig.
+message ValidateConfigRequest {
+  // The content of a .git2-ci.yml file. At most 256 KiB.
+  string content = 1;
+}
+
+// ValidateConfigResponse is the output of ValidateConfig.
+message ValidateConfigResponse {
+  // True if the file is valid. Then errors is empty.
+  bool valid = 1;
+
+  // Every problem found, in file order.
+  repeated ConfigError errors = 2;
+}
+
+// ConfigError is one problem in a .git2-ci.yml file. Its text is safe to
+// show to users.
+message ConfigError {
+  // Where the problem is, as a dotted path, for example "build.script" or
+  // "test.variables.GOFLAGS". Empty for a problem with the whole file.
+  string path = 1;
+
+  // Line of the problem, starting at 1. 0 if unknown.
+  int32 line = 2;
+
+  // Column of the problem, starting at 1. 0 if unknown.
+  int32 column = 3;
+
+  // What is wrong, in one sentence.
+  string message = 4;
+}

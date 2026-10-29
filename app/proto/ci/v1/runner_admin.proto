@@ -1,0 +1,188 @@
+syntax = "proto3";
+
+package ci.v1;
+
+import "google/protobuf/duration.proto";
+import "google/protobuf/timestamp.proto";
+
+// RunnerAdminService lets instance admins add, watch and remove runners.
+//
+// Caller: admin-api, for the console's Runners page. admin-api checks that
+// the user is an instance admin before calling.
+service RunnerAdminService {
+  // CreateRegistrationToken creates a one-time token that registers one
+  // runner (see RunnerService.RegisterRunner).
+  //
+  // The token is returned only here; ci-svc stores only its hash. Show it
+  // to the admin once.
+  //
+  // Errors:
+  //   - INVALID_ARGUMENT: description or expires_in breaks the rules on
+  //     CreateRegistrationTokenRequest.
+  rpc CreateRegistrationToken(CreateRegistrationTokenRequest) returns (CreateRegistrationTokenResponse);
+
+  // ListRunners returns one page of the instance's runners, oldest first.
+  //
+  // Errors:
+  //   - INVALID_ARGUMENT: page_size is negative or page_token is invalid.
+  rpc ListRunners(ListRunnersRequest) returns (ListRunnersResponse);
+
+  // GetRunner returns one runner.
+  //
+  // Errors:
+  //   - INVALID_ARGUMENT: id is not a UUID.
+  //   - NOT_FOUND: no runner has this ID.
+  rpc GetRunner(GetRunnerRequest) returns (GetRunnerResponse);
+
+  // UpdateRunner changes the fields that are set in the request and leaves
+  // the others as they are.
+  //
+  // A paused runner finishes its current job but gets no new ones.
+  //
+  // Errors:
+  //   - INVALID_ARGUMENT: id is not a UUID, or description is too long.
+  //   - NOT_FOUND: no runner has this ID.
+  rpc UpdateRunner(UpdateRunnerRequest) returns (UpdateRunnerResponse);
+
+  // DeleteRunner removes a runner. Its token stops working at once. A job
+  // it was running fails as RUNNER_LOST within about a minute.
+  //
+  // Errors:
+  //   - INVALID_ARGUMENT: id is not a UUID.
+  //   - NOT_FOUND: no runner has this ID.
+  rpc DeleteRunner(DeleteRunnerRequest) returns (DeleteRunnerResponse);
+}
+
+// RunnerStatus is whether a runner can take jobs right now.
+enum RunnerStatus {
+  // Never used.
+  RUNNER_STATUS_UNSPECIFIED = 0;
+  // The runner asked ci-svc for work within the last 90 seconds.
+  RUNNER_STATUS_ONLINE = 1;
+  // The runner has not been heard from for 90 seconds, or never.
+  RUNNER_STATUS_OFFLINE = 2;
+  // An admin paused the runner. It takes no new jobs.
+  RUNNER_STATUS_PAUSED = 3;
+}
+
+// Runner is one registered runner.
+message Runner {
+  // Unique ID of the runner, assigned by ci-svc.
+  string id = 1;
+
+  // Name the runner registered with, usually its host name.
+  string name = 2;
+
+  // Free text set by an admin. Empty if none.
+  string description = 3;
+
+  // Labels the runner registered with. A job runs only on a runner that
+  // has every one of its tags.
+  repeated string labels = 4;
+
+  // How the runner runs jobs, for example "docker".
+  string executor = 5;
+
+  // Version of the runner binary. Empty if it did not say.
+  string version = 6;
+
+  // Operating system and architecture, for example "linux/amd64". Empty if
+  // it did not say.
+  string platform = 7;
+
+  // Whether the runner can take jobs right now.
+  RunnerStatus status = 8;
+
+  // True if an admin paused the runner.
+  bool paused = 9;
+
+  // When the runner last called ci-svc. Unset if never.
+  google.protobuf.Timestamp last_seen_at = 10;
+
+  // When the runner registered.
+  google.protobuf.Timestamp created_at = 11;
+
+  // When an admin last changed it.
+  google.protobuf.Timestamp updated_at = 12;
+}
+
+// CreateRegistrationTokenRequest is the input of CreateRegistrationToken.
+message CreateRegistrationTokenRequest {
+  // Note for admins, for example which host the token is for. At most 200
+  // characters. Optional.
+  string description = 1;
+
+  // How long the token stays valid. Unset means 1 hour; at most 7 days.
+  google.protobuf.Duration expires_in = 2;
+}
+
+// CreateRegistrationTokenResponse is the output of
+// CreateRegistrationToken.
+message CreateRegistrationTokenResponse {
+  // The token. Shown only once.
+  string token = 1;
+
+  // When the token stops working if it was not used.
+  google.protobuf.Timestamp expires_at = 2;
+}
+
+// ListRunnersRequest is the input of ListRunners.
+message ListRunnersRequest {
+  // Maximum number of runners to return. 0 means the default of 50.
+  // Values above 100 are treated as 100. Negative values are rejected.
+  int32 page_size = 1;
+
+  // Token from a previous response's next_page_token. Empty for the first
+  // page. Tokens are opaque.
+  string page_token = 2;
+}
+
+// ListRunnersResponse is the output of ListRunners.
+message ListRunnersResponse {
+  // Runners on this page, oldest first.
+  repeated Runner runners = 1;
+
+  // Token for the next page. Empty if this is the last page.
+  string next_page_token = 2;
+}
+
+// GetRunnerRequest is the input of GetRunner.
+message GetRunnerRequest {
+  // ID of the runner. Required.
+  string id = 1;
+}
+
+// GetRunnerResponse is the output of GetRunner.
+message GetRunnerResponse {
+  // The runner.
+  Runner runner = 1;
+}
+
+// UpdateRunnerRequest is the input of UpdateRunner. Unset fields are left
+// as they are.
+message UpdateRunnerRequest {
+  // ID of the runner. Required.
+  string id = 1;
+
+  // Pause (true) or resume (false) the runner.
+  optional bool paused = 2;
+
+  // New description, at most 200 characters. An empty string clears it.
+  optional string description = 3;
+}
+
+// UpdateRunnerResponse is the output of UpdateRunner.
+message UpdateRunnerResponse {
+  // The runner after the change.
+  Runner runner = 1;
+}
+
+// DeleteRunnerRequest is the input of DeleteRunner.
+message DeleteRunnerRequest {
+  // ID of the runner. Required.
+  string id = 1;
+}
+
+// DeleteRunnerResponse is the output of DeleteRunner. It is empty on
+// purpose, so fields can be added later without breaking callers.
+message DeleteRunnerResponse {}

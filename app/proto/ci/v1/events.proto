@@ -1,0 +1,85 @@
+// Domain events published by ci-svc.
+//
+// Delivery follows the team's outbox format, the same as git-svc's:
+//   - ci-svc writes each event to ci_svc.outbox in the same database
+//     transaction as the change it describes, so an event exists if and
+//     only if the change was committed.
+//   - Events are delivered at least once. Consumers must handle duplicates,
+//     using the event ID carried next to the payload.
+//   - The event type is the full message name, for example
+//     "ci.v1.PipelineFinished". The payload is the message in the canonical
+//     protobuf JSON encoding.
+syntax = "proto3";
+
+package ci.v1;
+
+import "ci/v1/pipeline.proto";
+import "google/protobuf/timestamp.proto";
+
+// PipelineCreated is published when TriggerPipeline creates a pipeline.
+message PipelineCreated {
+  // ID of the pipeline.
+  string pipeline_id = 1;
+
+  // ID of the repository.
+  string repository_id = 2;
+
+  // Full ref name, for example "refs/heads/main".
+  string ref = 3;
+
+  // The commit, as lowercase hex.
+  string commit_sha = 4;
+
+  // What started the pipeline.
+  PipelineTrigger trigger = 5;
+
+  // When the pipeline was created. Equal to Pipeline.created_at.
+  google.protobuf.Timestamp occurred_at = 6;
+}
+
+// PipelineFinished is published once, when a pipeline reaches a final
+// status (SUCCESS, FAILED or CANCELED). Dash uses it for the check mark on
+// commits and merge requests.
+message PipelineFinished {
+  // ID of the pipeline.
+  string pipeline_id = 1;
+
+  // ID of the repository.
+  string repository_id = 2;
+
+  // Full ref name, for example "refs/heads/main".
+  string ref = 3;
+
+  // The commit, as lowercase hex.
+  string commit_sha = 4;
+
+  // The final status.
+  PipelineStatus status = 5;
+
+  // When the pipeline finished. Equal to Pipeline.finished_at.
+  google.protobuf.Timestamp occurred_at = 6;
+}
+
+// JobFinished is published once, when a job reaches a final status.
+message JobFinished {
+  // ID of the job.
+  string job_id = 1;
+
+  // ID of the job's pipeline.
+  string pipeline_id = 2;
+
+  // ID of the repository.
+  string repository_id = 3;
+
+  // Name of the job.
+  string name = 4;
+
+  // The final status: SUCCESS, FAILED, CANCELED or SKIPPED.
+  JobStatus status = 5;
+
+  // Why the job failed. UNSPECIFIED unless status is FAILED.
+  JobFailureReason failure_reason = 6;
+
+  // When the job finished. Equal to Job.finished_at.
+  google.protobuf.Timestamp occurred_at = 7;
+}
