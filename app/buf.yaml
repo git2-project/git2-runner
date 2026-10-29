@@ -1,0 +1,11 @@
+version: v2
+modules:
+  - path: proto
+lint:
+  use:
+    - STANDARD
+    # Every service, RPC, message, field and enum must have a comment.
+    - COMMENTS
+breaking:
+  use:
+    - FILE
