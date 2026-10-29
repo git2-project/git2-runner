@@ -18,7 +18,7 @@ We considered making a Redis list the queue, with Postgres as the record. We rej
 - **Postgres holds all state**: pipelines, the job queue (`jobs` rows leased with `FOR UPDATE SKIP LOCKED`), log chunks, secrets and runners.
 - **Redis carries signals only**, and only ci-svc connects to it:
   - `ci:jobs:wake` (pub/sub) wakes long-polling runners;
-  - `ci:log:<job_id>` (pub/sub) carries new log chunks to followers connected to other replicas;
+  - `ci:log:<job_id>` (pub/sub) tells followers on any replica that the log grew; they read the new bytes from Postgres (refined in ADR 0006: signals carry no data);
   - `ci:rl:<action>:<key>` holds rate-limit counters.
 - Every key and channel starts with `ci:`. ci-svc writes to Postgres first and publishes afterwards.
 - **Fallbacks when Redis is down or drops a message.** A waiting long poll tries to lease a job every 3 s, and log followers read Postgres every second. A Redis fault does not make ci-svc unready.

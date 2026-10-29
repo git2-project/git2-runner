@@ -16,8 +16,8 @@ The other repos are still young, so we build against these assumptions until the
 | [A-10](#a-10--who-checks-permissions) | Who checks permissions | everyone | W2 | open |
 | [A-11](#a-11--the-web-apps-reach-us-through-their-apis) | The web apps reach us through their APIs | Bilge, Beste | W5 | open |
 | [A-12](#a-12--ids-not-names) | IDs, not names | Apo | W1 | open |
-| [A-13](#a-13--one-outbox-format) | One outbox format | Apo, everyone | W4 | open |
-| [A-14](#a-14--one-go-version-one-dsn-variable) | One Go version, one DSN variable | everyone | W2 | open |
+| [A-13](#a-13--one-outbox-format) | One outbox format | Apo, everyone | W4 | **confirmed** 2026-10-29: codeplane ADR 0007; `ci_svc.outbox` uses it |
+| [A-14](#a-14--one-go-version-one-dsn-variable) | One Go version, one DSN variable | everyone | W2 | **confirmed** 2026-10-29: codeplane ADR 0010 moved to Go 1.26 and `POSTGRES_DSN` |
 | [A-15](#a-15--the-shared-redis) | The shared Redis | Ceyda, everyone | W2 | open |
 
 Weeks: W1 starts 26 Oct 2026, W2 2 Nov, W3 9 Nov, W4 16 Nov, W5 23 Nov, W6 30 Nov.
@@ -38,6 +38,7 @@ Weeks: W1 starts 26 Oct 2026, W2 2 Nov, W3 9 Nov, W4 16 Nov, W5 23 Nov, W6 30 No
 
 **We assume:** codeplane's gRPC API can return one file's content at a given commit. Its `repository.proto` plans this as `CommitService` for W2–W3.
 **If wrong:** pushes cannot start pipelines, and the M3 demo (11 Dec) is at risk.
+**Today (2026-10-29):** ci-svc reads files through a `Source` interface. In production it answers `UNAVAILABLE` until this RPC exists; in development `GIT2_CISVC_DEV_CONFIG_DIR` serves files from disk.
 
 ### A-04 · How a job gets the source code
 
@@ -92,7 +93,7 @@ Weeks: W1 starts 26 Oct 2026, W2 2 Nov, W3 9 Nov, W4 16 Nov, W5 23 Nov, W6 30 No
 
 ### A-14 · One Go version, one DSN variable
 
-**We assume:** the team settles on one Go version (git2 uses 1.26, codeplane 1.27) and one name for the database URL (`POSTGRES_DSN` in git2, `GIT2_DATABASE_URL` in codeplane). Until then we use Go 1.26 and `POSTGRES_DSN`, matching git2.
+**Confirmed on 2026-10-29:** codeplane's ADR 0010 moved it to Go 1.26 and `POSTGRES_DSN`, as in git2. All three repos now use Go 1.26 (devcontainers pin 1.26.10), `POSTGRES_DSN`, `POSTGRES_MAX_CONNS` and `TEST_POSTGRES_DSN`.
 **If wrong:** nothing breaks; we rename.
 
 ### A-15 · The shared Redis

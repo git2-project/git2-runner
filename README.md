@@ -20,22 +20,28 @@ Run as many runners as you have build hosts; they only need network access to ci
 
 | Path | What it is |
 | :--- | :--- |
-| `app/` | The Go module (`github.com/git2-project/git2-runner/app`): all code |
+| `app/` | The Go module (`github.com/git2-project/git2-runner/app`): `ci-svc`, `git2-runner`, the `ci.v1` contract in `app/proto/ci/v1/` |
+| `migrations/` | A copy of our schema migration; the original lives in the git2 repo |
 | `docs/` | Docs for the other git2 lanes: [API reference](docs/api/), [version notes](docs/version_notes/overview.md), [plan and assumptions](docs/design/) |
-| `.devcontainer/` | Go 1.26, psql, a Redis standing in for the shared one, and a Docker-in-Docker daemon where job containers run |
+| `.devcontainer/` | Go 1.26, psql, a test PostgreSQL, a Redis standing in for the shared one, and a Docker-in-Docker daemon where job containers run |
 
 ## Status
 
-Early development, on the 9-week plan in the [org README](https://github.com/git2-project). Nothing here is ready to run yet; build and test commands will land in this file and in `CLAUDE.md` as the code does.
+Early development, on the 9-week plan in the [org README](https://github.com/git2-project). Since 29 Oct 2026, ci-svc and the runner run a pipeline end to end in development: register a runner, store a secret, trigger, watch the jobs run stage by stage in containers, stream the log. Not yet: reading `.git2-ci.yml` from git-svc (pushes), source checkout, retry, artifacts. What's new is in [docs/version_notes/overview.md](docs/version_notes/overview.md).
 
 ## Development
 
 Open the repo in the devcontainer (VS Code → *Reopen in Container*). Job containers run on its own Docker daemon (`DOCKER_HOST=tcp://docker:2375`), never on your host's Docker. The database is the team's shared Supabase project (dev only); its schema comes from the git2 repo's migrations.
 
 ```bash
-cp env.example .env    # fill in POSTGRES_DSN (the same as in the git2 repo)
-cd app && go test ./...
+cp env.example .env    # POSTGRES_DSN, and GIT2_CI_SECRETS_KEY from `openssl rand -base64 32`
+cd app
+make tests             # unit and Postgres tests
+make tests-docker      # plus the tests that start job containers
+make run               # ci-svc on :9090 (internal) and :9091 (runners)
 ```
+
+All commands are in [CLAUDE.md](CLAUDE.md#development).
 
 ## Contributing
 

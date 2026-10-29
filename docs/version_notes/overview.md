@@ -23,5 +23,6 @@ the right month folder and add a line at the top of that month's table below.
 
 | Date | What changed | Affects | Tag |
 |---|---|---|---|
+| [29 Oct](2026/10/29_10.md) | First `ci.v1` contract and working code: `PipelineService` (trigger, list, cancel, live logs, validate), `RunnerAdminService`, `SecretService`, three outbox events, `.git2-ci.yml` v0 with JSON schema. `ci_svc` migration on git2 branch `feat/ci-svc-schema`. git2 merges the migration; Dash and console plan views; codeplane builds file and archive RPCs; deploy adds ci-svc, its two ports and the secrets key to the backup. | All | 🟠 Action |
 | [26 Oct](2026/10/26_10.md) | Decided: ci-svc lives in git2-runner, and one Redis is shared by all services. The CI lane keeps its state in Postgres and uses Redis only for signals, with keys starting `ci:`. Deploy adds the shared Redis; git2's README should point `ci-svc` here; everyone prefixes their Redis keys. | All | 🟠 Action |
 | [25 Oct](2026/10/25_10.md) | git2-runner repo opened. ci-svc (pipelines, job queue, logs, artifacts, CI secrets) is planned to live here next to the runner. Nothing to build yet, but please check the assumptions about your repo. | All | ⚪ FYI |
