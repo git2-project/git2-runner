@@ -8,6 +8,8 @@ import (
 	"regexp"
 	"strings"
 	"time"
+	"unicode"
+	"unicode/utf8"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -28,9 +30,11 @@ var (
 	refRE = regexp.MustCompile(`^refs/(heads|tags)/[^\x00-\x20\x7f~^:?*\[\\]+$`)
 	// shaRE accepts SHA-1 and SHA-256 object IDs.
 	shaRE = regexp.MustCompile(`^([0-9a-f]{40}|[0-9a-f]{64})$`)
-	// keyRE accepts printable ASCII.
-	keyRE = regexp.MustCompile(`^[\x20-\x7e]{1,200}$`)
 )
+
+// maxKeyBytes is the longest idempotency key. It leaves room for the
+// recommended "<event_id>:<ref>" with a ref of the full 255 bytes.
+const maxKeyBytes = 512
 
 // maxConfigErrors is how many .git2-ci.yml errors a pipeline's
 // error_message lists.
@@ -57,7 +61,7 @@ func validateTrigger(in TriggerInput) (triggerArgs, error) {
 	if a.repositoryID, err = apierr.ParseID("repository_id", in.RepositoryID); err != nil {
 		return a, err
 	}
-	if len(in.Ref) > 255 || !refRE.MatchString(in.Ref) || strings.Contains(in.Ref, "..") {
+	if len(in.Ref) > 255 || !utf8.ValidString(in.Ref) || !refRE.MatchString(in.Ref) || strings.Contains(in.Ref, "..") {
 		return a, apierr.InvalidField("ref", `must be a full branch or tag name such as "refs/heads/main", at most 255 bytes`)
 	}
 	if !shaRE.MatchString(in.CommitSHA) {
@@ -73,10 +77,16 @@ func validateTrigger(in TriggerInput) (triggerArgs, error) {
 		}
 		a.triggeredBy = uuid.NullUUID{UUID: id, Valid: true}
 	}
-	if !keyRE.MatchString(in.IdempotencyKey) {
-		return a, apierr.InvalidField("idempotency_key", "must be 1 to 200 printable ASCII characters")
+	if !validKey(in.IdempotencyKey) {
+		return a, apierr.InvalidField("idempotency_key", "must be 1 to 512 bytes of UTF-8 text without control characters")
 	}
 	return a, nil
+}
+
+// validKey reports whether s can be an idempotency key: any ref name
+// accepted above, with an event ID in front, must pass.
+func validKey(s string) bool {
+	return s != "" && len(s) <= maxKeyBytes && utf8.ValidString(s) && strings.IndexFunc(s, unicode.IsControl) < 0
 }
 
 // Trigger starts a pipeline, or returns the one already started with the

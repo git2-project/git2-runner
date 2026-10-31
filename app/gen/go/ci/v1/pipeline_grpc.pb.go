@@ -4,8 +4,9 @@
 // the jobs for runners and keeps their status and logs. It serves two
 // ports:
 //   - The internal port: PipelineService, RunnerAdminService and
-//     SecretService. Only other git2 services (dash-api, admin-api, the
-//     event relay) reach it.
+//     SecretService. Only other git2 services reach it: dash-api,
+//     admin-api, and whatever delivers push events (to be agreed with
+//     codeplane, WBS-1.3).
 //   - The runner port: RunnerService only. Build hosts reach it, and every
 //     call except RegisterRunner carries a runner token.
 //
@@ -66,8 +67,9 @@ const (
 //
 // PipelineService starts pipelines and reports their status and logs.
 //
-// Callers: the event relay (a push starts a pipeline) and dash-api (the
-// pipeline views and the "run pipeline" button).
+// Callers: dash-api (the pipeline views and the "run pipeline" button) and,
+// for pushes, whatever delivers git.v1.RepositoryPushed (to be agreed with
+// codeplane, WBS-1.3).
 type PipelineServiceClient interface {
 	// TriggerPipeline starts a pipeline for one commit of a repository.
 	//
@@ -242,8 +244,9 @@ func (c *pipelineServiceClient) ValidateConfig(ctx context.Context, in *Validate
 //
 // PipelineService starts pipelines and reports their status and logs.
 //
-// Callers: the event relay (a push starts a pipeline) and dash-api (the
-// pipeline views and the "run pipeline" button).
+// Callers: dash-api (the pipeline views and the "run pipeline" button) and,
+// for pushes, whatever delivers git.v1.RepositoryPushed (to be agreed with
+// codeplane, WBS-1.3).
 type PipelineServiceServer interface {
 	// TriggerPipeline starts a pipeline for one commit of a repository.
 	//

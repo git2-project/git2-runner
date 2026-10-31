@@ -4,8 +4,9 @@
 // the jobs for runners and keeps their status and logs. It serves two
 // ports:
 //   - The internal port: PipelineService, RunnerAdminService and
-//     SecretService. Only other git2 services (dash-api, admin-api, the
-//     event relay) reach it.
+//     SecretService. Only other git2 services reach it: dash-api,
+//     admin-api, and whatever delivers push events (to be agreed with
+//     codeplane, WBS-1.3).
 //   - The runner port: RunnerService only. Build hosts reach it, and every
 //     call except RegisterRunner carries a runner token.
 //
@@ -701,8 +702,9 @@ type TriggerPipelineRequest struct {
 	Trigger PipelineTrigger `protobuf:"varint,4,opt,name=trigger,proto3,enum=ci.v1.PipelineTrigger" json:"trigger,omitempty"`
 	// ID of the user who pushed or pressed "run". Optional; empty or a UUID.
 	TriggeredById string `protobuf:"bytes,5,opt,name=triggered_by_id,json=triggeredById,proto3" json:"triggered_by_id,omitempty"`
-	// Makes the call idempotent: one key, one pipeline. 1 to 200 printable
-	// ASCII characters. Required.
+	// Makes the call idempotent: one key, one pipeline. 1 to 512 bytes of
+	// UTF-8 text without control characters, so "<event_id>:<ref>" fits for
+	// every valid ref. Required.
 	//   - For a push, use "<event_id>:<ref>" from git.v1.RepositoryPushed, so
 	//     a redelivered event does not start a second pipeline.
 	//   - For a manual run, generate a UUID when the user clicks, and reuse

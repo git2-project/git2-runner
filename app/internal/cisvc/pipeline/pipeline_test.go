@@ -73,6 +73,18 @@ func TestValidateTrigger(t *testing.T) {
 	if _, err := validateTrigger(ok); err != nil {
 		t.Fatal(err)
 	}
+	// The recommended push key must pass for every valid ref, including
+	// non-ASCII names and refs of the full 255 bytes.
+	for _, ref := range []string{"refs/heads/feature/café", "refs/heads/" + strings.Repeat("ş", 122)} {
+		in := ok
+		in.Ref, in.IdempotencyKey = ref, uuid.NewString()+":"+ref
+		if len(ref) > 255 {
+			t.Fatalf("test ref is %d bytes", len(ref))
+		}
+		if _, err := validateTrigger(in); err != nil {
+			t.Errorf("ref %q (%d bytes): %v", ref[:24], len(ref), err)
+		}
+	}
 	for name, mutate := range map[string]func(*TriggerInput){
 		"branch name only": func(in *TriggerInput) { in.Ref = "main" },
 		"remote ref":       func(in *TriggerInput) { in.Ref = "refs/remotes/origin/main" },
@@ -81,8 +93,10 @@ func TestValidateTrigger(t *testing.T) {
 		"upper-case sha":   func(in *TriggerInput) { in.CommitSHA = strings.Repeat("A", 40) },
 		"short sha":        func(in *TriggerInput) { in.CommitSHA = "abc123" },
 		"bad user":         func(in *TriggerInput) { in.TriggeredByID = "me" },
-		"key too long":     func(in *TriggerInput) { in.IdempotencyKey = strings.Repeat("k", 201) },
-		"key not ASCII":    func(in *TriggerInput) { in.IdempotencyKey = "ключ" },
+		"key too long":     func(in *TriggerInput) { in.IdempotencyKey = strings.Repeat("k", 513) },
+		"key with newline": func(in *TriggerInput) { in.IdempotencyKey = "evt\nrefs/heads/main" },
+		"key not UTF-8":    func(in *TriggerInput) { in.IdempotencyKey = "evt:\xff" },
+		"ref not UTF-8":    func(in *TriggerInput) { in.Ref = "refs/heads/caf\xe9" },
 	} {
 		in := ok
 		mutate(&in)
