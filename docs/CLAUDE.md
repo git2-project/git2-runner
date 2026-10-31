@@ -18,6 +18,7 @@ Everything in `docs/` is written for **people outside this repo**: the other lan
 | `version_notes/overview.md` | One line per note, newest first | Index |
 | `design/` | Plan, assumptions, proposals | For us. Others may read it but never build from it |
 | `decisions/` | ADRs | For us |
+| `osman/` | Osman's working notes and handoff prompts for coding agents (for example `runner-handoff-prompt.md`) | For us. Not a spec |
 
 ## When a change needs docs
 

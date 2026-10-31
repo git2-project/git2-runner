@@ -89,6 +89,13 @@ go tool -modfile=tools.mod grpcurl -plaintext localhost:9090 list
 go tool -modfile=tools.mod grpcurl -plaintext -d '{"description":"dev"}' localhost:9090 ci.v1.RunnerAdminService/CreateRegistrationToken
 ```
 
+**Outside the devcontainer** (supported, but check these):
+- `tools.mod` needs Go 1.26.7 or newer. With an older local Go, run tools as `GOTOOLCHAIN=go1.26.10 go tool -modfile=tools.mod …` (Go does not switch toolchains for `-modfile` by itself).
+- Postgres tests need a throwaway database: `docker run -d --rm --name git2-runner-testpg -e POSTGRES_USER=git2 -e POSTGRES_PASSWORD=git2 -e POSTGRES_DB=git2_test -p 127.0.0.1:55432:5432 postgres:17-alpine`, then `TEST_POSTGRES_DSN=postgres://git2:git2@127.0.0.1:55432/git2_test?sslmode=disable`. Tests apply `migrations/` themselves.
+- `make tests-docker` uses whatever `DOCKER_HOST` points at, or the local daemon.
+- In zsh, unquoted `$VAR` holding several words is not split; write multi-command scripts for bash.
+- On Windows: `t.TempDir()` instead of `/abs/paths` in tests, and quote `"-modfile=tools.mod"` in PowerShell.
+
 To run a pipeline without codeplane, set `GIT2_CISVC_DEV_CONFIG_DIR` and put a file at `<dir>/<repository_id>/.git2-ci.yml`, then call `TriggerPipeline` with that repository ID. Every variable is described in `docs/api/config.md`.
 
 ## Conventions
