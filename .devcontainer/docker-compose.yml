@@ -52,6 +52,10 @@ services:
       interval: 5s
       timeout: 5s
       retries: 10
+      # The first start runs initdb and loads migrations/, which took about
+      # two minutes on a Windows host. Failed checks in this window do not
+      # count; a passing one ends it at once.
+      start_period: 180s
 
   # ── Redis (stands in for the instance's shared Redis) ─────────────────
   # Same image as the git2 repo's devcontainer. Not published on the host:

@@ -3,6 +3,7 @@ package config
 import (
 	"crypto/rand"
 	"encoding/base64"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -45,10 +46,12 @@ func TestParse(t *testing.T) {
 		t.Error("the error repeats the secrets key")
 	}
 
+	// t.TempDir is absolute on every OS; "/ci" is not absolute on Windows.
+	dir := t.TempDir()
 	cfg, err = parse(lookup(map[string]string{
-		EnvPostgresDSN: "postgres://x", EnvSecretsKey: encoded, EnvDev: "true", EnvDevConfigDir: "/ci/",
+		EnvPostgresDSN: "postgres://x", EnvSecretsKey: encoded, EnvDev: "true", EnvDevConfigDir: dir + string(filepath.Separator),
 	}))
-	if err != nil || cfg.DevConfigDir != "/ci" || cfg.RedisAddr != "" {
+	if err != nil || cfg.DevConfigDir != dir || cfg.RedisAddr != "" {
 		t.Errorf("dev config: %+v %v", cfg, err)
 	}
 }
