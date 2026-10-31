@@ -6,7 +6,7 @@ ci-svc is the CI service of git2. It turns a push into a pipeline of jobs, queue
 
 | Port | Default | Services | Who calls it | Auth |
 |---|---|---|---|---|
-| Internal | `:9090` | `ci.v1.PipelineService`, `ci.v1.RunnerAdminService`, `ci.v1.SecretService` | dash-api, admin-api, the event relay. Reachable only inside the instance network | None. Like git-svc, ci-svc trusts its callers: **check the user's permissions before you call** |
+| Internal | `:9090` | `ci.v1.PipelineService`, `ci.v1.RunnerAdminService`, `ci.v1.SecretService` | dash-api, admin-api, and whatever delivers push events (to be agreed, WBS-1.3). Reachable only inside the instance network | None. Like git-svc, ci-svc trusts its callers: **check the user's permissions before you call** |
 | Runner | `:9091` | `ci.v1.RunnerService` | `git2-runner` on build hosts | A runner token in `authorization: Bearer <token>`. TLS in production |
 
 Both ports serve the standard gRPC health service (`grpc.health.v1.Health`). With `GIT2_CISVC_DEV=true`, the internal port also serves gRPC reflection, which `grpcurl` needs.

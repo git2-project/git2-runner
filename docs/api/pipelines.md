@@ -51,9 +51,9 @@ Starts a pipeline for one commit. **Idempotent on `idempotency_key`**: the same 
 | `commit_sha` | 40 or 64 lowercase hex characters. Required |
 | `trigger` | `PIPELINE_TRIGGER_PUSH` or `PIPELINE_TRIGGER_MANUAL`. Required |
 | `triggered_by_id` | auth-svc user ID, or empty |
-| `idempotency_key` | 1–200 printable ASCII characters. Required. For a push: `"<event_id>:<ref>"`. For a button: a UUID made when the user clicks, reused on retry |
+| `idempotency_key` | 1–512 bytes of UTF-8 text without control characters, so `"<event_id>:<ref>"` fits every valid ref (refs may be non-ASCII, up to 255 bytes). Required. For a push: `"<event_id>:<ref>"`. For a button: a UUID made when the user clicks, reused on retry |
 
-**For pushes** (the relay of codeplane's `git.v1.RepositoryPushed`): call it once per entry of `ref_updates` whose `new_sha` is not all zeros (deleted refs start nothing), with `commit_sha = new_sha`. Treat `NOT_FOUND` as "this repository has no CI" (do not retry). Retry `UNAVAILABLE`.
+**For pushes.** Who calls `TriggerPipeline` for codeplane's `git.v1.RepositoryPushed` is still to be agreed with codeplane (WBS-1.3, W2). Whoever does: call it once per entry of `ref_updates` whose `new_sha` is not all zeros (deleted refs start nothing), with `commit_sha = new_sha`. Treat `NOT_FOUND` as "this repository has no CI" (do not retry). Retry `UNAVAILABLE`.
 
 ```sh
 grpcurl -plaintext -d '{

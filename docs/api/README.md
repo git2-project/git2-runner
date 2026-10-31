@@ -6,7 +6,7 @@ The reference for everything other lanes can see of the CI lane. Where these pag
 |---|---|---|
 | [overview.md](overview.md) | everyone, read first | Ports, conventions, IDs, errors, pagination, how to call ci-svc |
 | [ci-yaml.md](ci-yaml.md) | everyone writing pipelines, Dash (editor) | The `.git2-ci.yml` format and its JSON schema |
-| [pipelines.md](pipelines.md) | Dash, the event relay, codeplane | Triggering, listing and cancelling pipelines; jobs; live logs; validating a file |
+| [pipelines.md](pipelines.md) | Dash, codeplane | Triggering, listing and cancelling pipelines; jobs; live logs; validating a file |
 | [runners.md](runners.md) | Console, Deploy | Registration tokens, runner list, pause, delete; installing and running `git2-runner` |
 | [secrets.md](secrets.md) | Console, Dash | CI secrets: set, list, delete (values are write-only) |
 | [events.md](events.md) | Dash, anyone listening | `ci.v1.PipelineCreated`, `ci.v1.PipelineFinished`, `ci.v1.JobFinished` |

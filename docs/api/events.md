@@ -5,18 +5,18 @@ ci-svc publishes domain events through its outbox, in the team's format (the sam
 ## Delivery
 
 - Each event is written to `ci_svc.outbox` **in the same transaction** as the change it describes: an event exists if and only if the change happened.
-- A relay (codeplane builds the first one, WBS-1.3) delivers pending rows **at least once**. You may see an event twice: drop duplicates by `event_id`.
-- Order is not guaranteed across pipelines. Within one pipeline, `PipelineCreated` is written before any `JobFinished`, and `PipelineFinished` after the last `JobFinished`, but a relay may still deliver them out of order. Use `occurred_at` and the status, not arrival order.
+- **How rows leave the outbox is not decided yet.** The delivery path is to be agreed with codeplane in the WBS-1.3 design (W2). Whatever it is, delivery is **at least once**: you may see an event twice, so drop duplicates by `event_id`.
+- Order is not guaranteed across pipelines. Within one pipeline, `PipelineCreated` is written before any `JobFinished`, and `PipelineFinished` after the last `JobFinished`, but delivery may still reorder them. Use `occurred_at` and the status, not arrival order.
 
 | Column | Content |
 |---|---|
-| `id` | `BIGSERIAL`, the relay's reading order |
+| `id` | `BIGSERIAL`, the order rows were written |
 | `event_id` | `UUID`, the event's own ID |
 | `aggregate_type` | `pipeline` or `job` |
 | `aggregate_id` | the pipeline or job ID |
 | `event_type` | full proto message name, e.g. `ci.v1.PipelineFinished` |
 | `payload` | the message in canonical protobuf JSON (`jsonb`): lowerCamelCase fields, enums as names |
-| `created_at`, `published_at` | when written; `NULL` until the relay delivered it |
+| `created_at`, `published_at` | when written; `NULL` until the event has been delivered |
 
 Decode with `protojson.Unmarshal` into the type named by `event_type`.
 
