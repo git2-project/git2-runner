@@ -1,0 +1,37 @@
+version: "2"
+
+run:
+  # Lint the integration tests too.
+  build-tags:
+    - integration
+
+linters:
+  default: standard
+  enable:
+    - bodyclose
+    - errorlint
+    - gosec
+    - misspell
+    - noctx
+    - revive
+    - unconvert
+  exclusions:
+    generated: strict
+    presets:
+      - common-false-positives
+      - std-error-handling
+    paths:
+      - ^gen/
+
+formatters:
+  enable:
+    - gofmt
+    - goimports
+  settings:
+    goimports:
+      local-prefixes:
+        - github.com/git2-project/git2-runner/app
+  exclusions:
+    generated: strict
+    paths:
+      - ^gen/

@@ -1,4 +1,8 @@
-FROM golang:1.26-bookworm
+# Pinned to a patch release, as in git2-codeplane: tools.mod needs Go 1.26.7
+# or newer (buf), and a floating golang:1.26 tag can be months old in a local
+# image cache. The image sets GOTOOLCHAIN=local, so Go would not fetch a newer
+# toolchain.
+FROM golang:1.26.10-bookworm
 
 # psql to inspect the ci_svc schema on the shared dev DB, redis-cli to watch
 # the ci:* keys and channels.

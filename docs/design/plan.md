@@ -1,6 +1,8 @@
 # CI lane plan (draft v0)
 
-Status: **Q1–Q5 decided on 2026-10-26** ([§8](#8-decisions)) · Owner: Osman · 2026-10-26
+Status: **Q1–Q5 decided on 2026-10-26, details in ADRs 0006–0009 on 2026-10-29** ([§8](#8-decisions)) · Owner: Osman · updated 2026-10-29
+
+> The contract described in §3.2 now exists. Where this plan and [docs/api/](../api/README.md) or the `.proto` files disagree, those win.
 
 How the CI lane gets from an empty repo to the M3 "green pipeline" demo (11 Dec) and through the M4 restore demo (18 Dec). Agreed decisions are recorded as ADRs in [`docs/decisions/`](../decisions/). What we assume about the other repos is in [assumptions.md](assumptions.md).
 
@@ -30,18 +32,18 @@ The documents agree on the big picture and disagree on details that matter to th
   → **Decided: ci-svc lives in this repo** (ADR 0001). It keeps its name, so every document still reads right except for which repo it sits in.
 - **Redis.** The kickoff says "no Redis, Postgres is enough". The charter and the plan use Redis for the job queue and for live logs (pub/sub). git2 core uses Redis for sessions; codeplane uses none.
   → **Decided: one Redis, shared by all services** (ADR 0003). In this lane, Postgres stays the source of truth for jobs, leases and logs. Redis only wakes waiting runners, carries live log lines between ci-svc replicas and holds rate limits (§3.6). Nothing durable is ever only in Redis, which keeps R-03 closed.
-- **Dev database and migrations.** The team map: one shared Supabase dev DB, migrations only in git2, applied by a GitHub Action after merge. git2 core: `POSTGRES_DSN` and a psql-based `make migrate`. codeplane: its own local Postgres, `GIT2_DATABASE_URL`, and its own `migrate` command.
+- **Dev database and migrations.** The team map: one shared Supabase dev DB, migrations only in git2, applied by a GitHub Action after merge. git2 core: `POSTGRES_DSN` and a psql-based `make migrate`. codeplane first had its own Postgres, `GIT2_DATABASE_URL` and `migrate` command; since its ADRs 0006 and 0010 (26 Oct) it matches git2.
   → We use the shared Supabase DB through `POSTGRES_DSN`, and our migrations go to git2 by PR.
 - **Where contracts live.** The plan says "merged in `contracts/`" of git2. codeplane's ADR 0004 keeps the proto next to its code, and git2's `contracts/` holds a pointer to it.
   → We follow codeplane's ADR 0004 and ADR 0008, so all gRPC APIs in git2 look alike.
 - **How live logs travel.** The charter says Redis pub/sub.
-  → Partly. Inside ci-svc, Redis pub/sub carries new lines between replicas. Toward Dash it is a gRPC stream, which dash-api turns into SSE or WebSocket for the browser (A-07).
-- **Go version.** git2 uses 1.26, codeplane `go 1.27.0`.
-  → 1.26 for now, raised with the team (A-14).
+  → Partly. Inside ci-svc, Redis pub/sub carries "the log grew" signals between replicas; the lines themselves are read from Postgres. Toward Dash it is a gRPC stream, which dash-api turns into SSE or WebSocket for the browser (A-07).
+- **Go version.** git2 uses 1.26; codeplane moved from 1.27 to 1.26 (its ADR 0010).
+  → 1.26 everywhere, pinned to 1.26.10 in the devcontainers (A-14, confirmed).
 - **Who manages runners in the UI.** The charter says admin-api and admin-web. The team map says Beste's console, built from Osman's docs.
   → These describe the same thing. Beste builds it against our `RunnerAdminService`.
 
-Also noticed, not ours to fix: codeplane's own `migrate` command conflicts with "migrations live only in git2", and the team map routes the console's "users · settings · runners" to codeplane instead of auth-svc and ci-svc.
+Also noticed, not ours to fix: the team map routes the console's "users · settings · runners" to codeplane instead of auth-svc and ci-svc.
 
 ## 3. Proposed architecture
 
@@ -99,7 +101,7 @@ GitLab (Rails plus gitlab-runner) and GitHub Actions (the service plus self-host
 
 ### 3.2 gRPC API v0 (package `ci.v1`)
 
-A sketch. The fully commented `.proto` is the W1 deliverable.
+Built on 2026-10-29: [`app/proto/ci/v1/`](../../app/proto/ci/v1/), documented in [docs/api/](../api/README.md). Changes from the first sketch: `AppendLog` is unary and idempotent by offset (not a client stream); `ValidateConfig` was added; `RetryJob` (W4–W5) and the artifact RPCs (W6–W7) come later.
 
 | Service | RPC | Called by | What it does |
 |---|---|---|---|
@@ -114,7 +116,7 @@ A sketch. The fully commented `.proto` is the W1 deliverable.
 | RunnerService | `RegisterRunner` | runner | Trades a registration token for a runner ID and a runner token (returned once) |
 | | `RequestJob` | runner | Long poll, up to about 30 s. Returns a job or nothing |
 | | `UpdateJob` | runner | State changes, and the heartbeat. The reply says whether the job was cancelled |
-| | `AppendLog` | runner | A client stream of log chunks, idempotent by byte offset |
+| | `AppendLog` | runner | One chunk of log at a byte offset; idempotent, so retries are safe |
 | | `UploadArtifact` | runner | A client stream; ci-svc writes it to the bucket |
 
 Events in `ci_svc.outbox`: `ci.v1.PipelineCreated`, `ci.v1.PipelineFinished` (the kickoff's `pipeline.finished`, which drives the ✓ on merge requests) and `ci.v1.JobFinished`.
@@ -180,9 +182,9 @@ The fallback is a timer and not `LISTEN/NOTIFY`, because the Supabase transactio
 
 **Live logs.** How a log line gets from the runner to Dash:
 
-1. `AppendLog` writes each chunk to `job_log_chunks` first, then publishes it on `ci:log:<job_id>`.
-2. `StreamJobLog` first sends what Postgres holds from the caller's byte offset on, then forwards whatever arrives on the channel. A line reaches a follower on any replica within milliseconds.
-3. A follower that sees a gap in the offsets (a lost message) reads the missing bytes from Postgres. With Redis down, followers read Postgres every second, still inside the 2 s target.
+1. `AppendLog` writes each chunk to `job_log_chunks` first, then publishes a signal (no data) on `ci:log:<job_id>`.
+2. `StreamJobLog` sends what Postgres holds from the caller's byte offset on, then waits for the signal and reads Postgres again. A line reaches a follower on any replica within milliseconds.
+3. Because followers always read Postgres, a lost signal only delays them: they also read every second, inside the 2 s target with Redis down.
 
 When the job ends, the chunks are joined into one object, `ci/logs/<job_id>.log`, and the rows are deleted. In v0 a job log is capped (for example at 4 MiB) and then truncated with a notice.
 
@@ -206,7 +208,7 @@ The instance has one Redis, shared by every git2 service (auth-svc keeps its ses
 | Key or channel | Holds | If it is lost |
 |---|---|---|
 | `ci:jobs:wake` (channel) | "A job is waiting" for long-polling runners | Runners find the job on their next 3 s check |
-| `ci:log:<job_id>` (channel) | New log chunks, for followers connected to another replica | Followers read the chunks from Postgres |
+| `ci:log:<job_id>` (channel) | "The log grew or the job ended", for followers on any replica | Followers read Postgres every second |
 | `ci:rl:<action>:<key>` | Rate-limit counters, for example registration attempts per IP address | Limits start again from zero |
 
 Never in Redis: job or pipeline state, queue order, leases, logs, secrets, tokens.
@@ -236,26 +238,36 @@ Both programs take their config from environment variables (later also from `git
 
 Job isolation with the `docker` executor (R-05): no `--privileged`, no Docker socket inside the job container, CPU, memory and process limits, a non-root user where the image allows it, a fresh network and volume per job, and everything removed afterwards.
 
-## 6. Proposed layout
+## 6. Layout
+
+As built on 2026-10-29:
 
 ```
 app/                       Go module root: github.com/git2-project/git2-runner/app
   cmd/ci-svc/              control plane
-  cmd/git2-runner/         the runner
+  cmd/git2-runner/         the runner: register, run
   proto/ci/v1/             gRPC contract (source of truth)
   gen/go/ci/v1/            generated Go code, committed (as in codeplane)
   internal/
     ciyaml/                .git2-ci.yml parsing, validation, JSON schema
-    cisvc/                 pipelines, queue, leases, reaper, gRPC servers
-    runner/                poll loop, log streaming, masking
-    executor/docker/       job containers through the Docker Engine API
-    store/                 Postgres access (ci_svc)
-    notify/                Redis wake-ups and log fan-out, with the Postgres fallback
-    secrets/               encryption
-    blob/                  bucket access (gocloud.dev/blob)
+    cisvc/                 ci-svc only; the runner binary imports none of it
+      config/              env parsing
+      db/, testdb/         Postgres pool (pooler-aware), schema check, test helper
+      pipeline/            trigger, stages, queue and leases, reaper, logs
+      runners/             registration, tokens, admin
+      secrets/, secretbox/ CI secrets and their encryption
+      notify/, ratelimit/  Redis signals with polling fallback; rate limits
+      outbox/, source/     events; reading .git2-ci.yml (dev dir until A-03)
+      server/              gRPC servers, interceptors, runner auth, error mapping
+      apierr/, page/, token/
+    runner/                agent loop, heartbeats, log shipping, masking
+    runner/docker/         Docker Engine API executor
+migrations/                copy of our git2 migration, for tests (ADR 0009)
 ```
 
-A Go module in a subdirectory is tagged with the directory as a prefix (`app/v0.1.0`), and then `go get github.com/git2-project/git2-runner/app@v0.1.0` works. Two binaries keep database code out of the runner.
+Still to come: `internal/cisvc/blob/` (bucket, W6) and a codeplane client in `source/` (A-03).
+
+A Go module in a subdirectory is tagged with the directory as a prefix (`app/v0.1.0`), and then `go get github.com/git2-project/git2-runner/app@v0.1.0` works. Two binaries keep database code out of the runner; `go list -deps ./cmd/git2-runner` shows no pgx and no Redis client.
 
 ## 7. Roadmap
 
@@ -279,12 +291,18 @@ Decided by Osman on 2026-10-26.
 | Q3 | What holds the queue and the live logs? | Postgres, as the source of truth. The Redis shared by all services carries wake-ups and log fan-out (§3.4, §3.6). This changed from the proposal, which had no Redis | [0003](../decisions/0003-postgres-truth-shared-redis-signals.md) |
 | Q4 | How does a job get the source code in v0? | ci-svc fetches the commit as an archive from codeplane and passes it to the runner. Later, the runner clones with a short-lived job token (A-04) | [0004](../decisions/0004-job-source-archive-v0.md) |
 | Q5 | Runner protocol: long poll or a bidirectional stream? | Long poll (§3.2) | [0005](../decisions/0005-runner-long-poll.md) |
+| Q6 | A message broker or the Postgres table as the queue? Job states, leases, cancel, logs | Postgres table with leases; details fixed | [0006](../decisions/0006-job-queue-and-lifecycle.md) |
+| Q7 | Where do CI secrets live and get their API? | In ci-svc (`SecretService`), not in git2 | [0007](../decisions/0007-ci-secrets-live-in-ci-svc.md) |
+| Q8 | Docker CLI or Engine API in the runner? | Engine API | [0008](../decisions/0008-runner-uses-the-docker-engine-api.md) |
+| Q9 | How do our tests get the schema? | A copy of the git2 migration, as in codeplane | [0009](../decisions/0009-schema-copy-tooling-and-tests.md) |
 
 The questions for the other lanes are in [assumptions.md](assumptions.md).
 
 ## 9. First steps (W1)
 
-1. `.git2-ci.yml` v0: the spec, the JSON schema and the parser, with tests (WBS-10.1, due 1 Nov).
-2. `ci.v1` proto v0 with buf lint, its `docs/api/` pages and a version note.
-3. Draft the `ci_svc` migration and open the git2 PR.
-4. Send each assumption to its owner as a git2 issue.
+1. ✅ `.git2-ci.yml` v0: the spec, the JSON schema and the parser, with tests (WBS-10.1, due 1 Nov).
+2. ✅ `ci.v1` proto v0 with buf lint, its `docs/api/` pages and a version note (29 Oct).
+3. ✅ The `ci_svc` migration, on git2 branch `feat/ci-svc-schema`; the PR is Osman's to open.
+4. ⏳ Send the action items of the 29 Oct note to their owners as a git2 issue.
+
+Ahead of plan: ci-svc already implements the runner protocol, the queue, cancel, the reaper, live logs and secrets, and `git2-runner` runs jobs with Docker (W2–W3 work). Next: codeplane's file and archive RPCs (A-03, A-04) to wire real pushes, then retry, artifacts and the bucket.

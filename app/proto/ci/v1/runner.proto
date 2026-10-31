@@ -1,0 +1,226 @@
+syntax = "proto3";
+
+package ci.v1;
+
+import "ci/v1/pipeline.proto";
+import "google/protobuf/duration.proto";
+
+// RunnerService is the protocol between ci-svc and its runners. It is the
+// only service on ci-svc's runner port, which build hosts reach.
+//
+// Every call except RegisterRunner must carry the runner's token in the
+// "authorization" metadata as "Bearer <runner_token>". A missing, unknown
+// or deleted token is UNAUTHENTICATED; the runner must then be registered
+// again.
+//
+// A runner's life:
+//  1. RegisterRunner once, with a registration token from an admin. Keep
+//     the returned runner token in the runner's config file.
+//  2. Call RequestJob in a loop. It waits up to about 30 seconds and
+//     returns a job or nothing.
+//  3. While a job runs, call AppendLog with new output, and UpdateJob with
+//     status RUNNING every 15 seconds as a heartbeat. A job whose runner
+//     stops sending heartbeats for 60 seconds fails as RUNNER_LOST.
+//  4. Finish with UpdateJob and status SUCCESS or FAILED.
+service RunnerService {
+  // RegisterRunner trades a one-time registration token for a runner ID
+  // and a runner token. The runner token is returned only here; ci-svc
+  // stores only its hash.
+  //
+  // Errors:
+  //   - INVALID_ARGUMENT: a field breaks the rules on RegisterRunnerRequest.
+  //   - UNAUTHENTICATED: the registration token is unknown, used or expired.
+  //   - RESOURCE_EXHAUSTED: too many attempts from this address. Wait a
+  //     minute.
+  rpc RegisterRunner(RegisterRunnerRequest) returns (RegisterRunnerResponse);
+
+  // RequestJob waits for a job this runner can run and gives it to the
+  // runner.
+  //
+  // It returns as soon as a job is queued, or after about 30 seconds
+  // without one; then the response has no job and the runner asks again.
+  // Use a deadline of at least 60 seconds. A paused runner never gets a
+  // job.
+  //
+  // A runner gets a job when every tag of the job is one of its labels.
+  // Jobs without tags go to any runner.
+  rpc RequestJob(RequestJobRequest) returns (RequestJobResponse);
+
+  // UpdateJob reports the status of a job this runner is running.
+  //
+  // Status RUNNING is the heartbeat: it extends the runner's lease on the
+  // job by 60 seconds. SUCCESS and FAILED finish the job. Send the final
+  // status only after the last AppendLog.
+  //
+  // Errors:
+  //   - INVALID_ARGUMENT: job_id is not a UUID, or status is not RUNNING,
+  //     SUCCESS or FAILED.
+  //   - NOT_FOUND: this runner is not running a job with this ID.
+  //   - FAILED_PRECONDITION: the job already finished, for example because
+  //     the lease ran out. Stop the job and do not report it again.
+  rpc UpdateJob(UpdateJobRequest) returns (UpdateJobResponse);
+
+  // AppendLog adds output to the log of a job this runner is running.
+  //
+  // data is appended at offset. Sending the same bytes again (a retry) is
+  // harmless: bytes before the current end of the log are ignored. If
+  // offset is past the end, nothing is appended; the response's size says
+  // where to resume.
+  //
+  // Mask secret values before sending: ci-svc stores what it gets.
+  //
+  // Errors:
+  //   - INVALID_ARGUMENT: job_id is not a UUID, offset is negative, or data
+  //     is empty or larger than 256 KiB.
+  //   - NOT_FOUND: this runner is not running a job with this ID.
+  //   - FAILED_PRECONDITION: the job already finished.
+  rpc AppendLog(AppendLogRequest) returns (AppendLogResponse);
+}
+
+// RegisterRunnerRequest is the input of RegisterRunner.
+message RegisterRunnerRequest {
+  // One-time token from RunnerAdminService.CreateRegistrationToken.
+  // Required.
+  string registration_token = 1;
+
+  // Name shown in the console, for example the host name. 1 to 100
+  // characters. Required.
+  string name = 2;
+
+  // Labels that say which jobs the runner takes: a job runs only on a
+  // runner that has every one of its tags. At most 20, each 1 to 63
+  // characters from A-Z, a-z, 0-9, "_", "." and "-". Optional.
+  repeated string labels = 3;
+
+  // How the runner runs jobs. Only "docker" exists today. Required.
+  string executor = 4;
+
+  // Version of the runner binary, for example "0.1.0". At most 50
+  // characters. Optional.
+  string version = 5;
+
+  // Operating system and architecture of the host, for example
+  // "linux/amd64". At most 50 characters. Optional.
+  string platform = 6;
+}
+
+// RegisterRunnerResponse is the output of RegisterRunner.
+message RegisterRunnerResponse {
+  // ID of the new runner.
+  string runner_id = 1;
+
+  // Secret token for every later call. Shown only once: store it in the
+  // runner's config file with permissions 0600.
+  string runner_token = 2;
+}
+
+// RequestJobRequest is the input of RequestJob. It is empty on purpose:
+// the runner is known from its token.
+message RequestJobRequest {}
+
+// RequestJobResponse is the output of RequestJob.
+message RequestJobResponse {
+  // The job to run now. Unset if no job was queued in time; ask again.
+  JobAssignment job = 1;
+}
+
+// JobAssignment is everything a runner needs to run one job.
+message JobAssignment {
+  // ID of the job. Use it in UpdateJob and AppendLog.
+  string job_id = 1;
+
+  // ID of the job's pipeline.
+  string pipeline_id = 2;
+
+  // ID of the repository.
+  string repository_id = 3;
+
+  // Full ref name, for example "refs/heads/main".
+  string ref = 4;
+
+  // The commit, as lowercase hex.
+  string commit_sha = 5;
+
+  // Name of the job.
+  string name = 6;
+
+  // Name of the job's stage.
+  string stage = 7;
+
+  // Container image to run the script in.
+  string image = 8;
+
+  // Shell commands, run one after another with /bin/sh in the image's
+  // working directory. The job fails at the first command that exits with
+  // a non-zero code.
+  repeated string script = 9;
+
+  // Environment variables for the container: git2's predefined CI_*
+  // variables, the variables of .git2-ci.yml, then the secrets. A later
+  // entry with the same name wins.
+  repeated JobVariable variables = 10;
+
+  // Stop the job and report it FAILED with reason TIMEOUT after this long.
+  google.protobuf.Duration timeout = 11;
+}
+
+// JobVariable is one environment variable of a job.
+message JobVariable {
+  // Name of the variable.
+  string name = 1;
+
+  // Value of the variable.
+  string value = 2;
+
+  // True for secrets. The runner must replace the value by "[MASKED]" in
+  // the log, must not write it to disk, and must not pass it on the
+  // command line of another process.
+  bool masked = 3;
+}
+
+// UpdateJobRequest is the input of UpdateJob.
+message UpdateJobRequest {
+  // ID of the job. Required.
+  string job_id = 1;
+
+  // RUNNING (heartbeat), SUCCESS or FAILED. Required.
+  JobStatus status = 2;
+
+  // Exit code of the script, once it has exited. Required with SUCCESS
+  // (where it is 0) and with FAILED for reason SCRIPT_FAILURE.
+  optional int32 exit_code = 3;
+
+  // Why the job failed. Required with FAILED, unset otherwise.
+  JobFailureReason failure_reason = 4;
+}
+
+// UpdateJobResponse is the output of UpdateJob.
+message UpdateJobResponse {
+  // True if the job was canceled. Stop it at once and report it with
+  // status FAILED; ci-svc records it as CANCELED.
+  bool cancel_requested = 1;
+}
+
+// AppendLogRequest is the input of AppendLog.
+message AppendLogRequest {
+  // ID of the job. Required.
+  string job_id = 1;
+
+  // Byte offset of data's first byte within the log. Required (0 for the
+  // first call).
+  int64 offset = 2;
+
+  // Log bytes, with secrets masked. 1 byte to 256 KiB.
+  bytes data = 3;
+}
+
+// AppendLogResponse is the output of AppendLog.
+message AppendLogResponse {
+  // Size of the stored log after this call. Send the next bytes at this
+  // offset.
+  int64 size = 1;
+
+  // True once the log reached its size limit (4 MiB). Later output is
+  // dropped, so the runner can stop sending it.
+  bool truncated = 2;
+}

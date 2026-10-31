@@ -1,9 +1,9 @@
 services:
 
   # ── Go toolchain (VS Code attaches here) ──────────────────────────────
-  # Postgres is not a service here: dev uses the team's shared Supabase project
-  # through POSTGRES_DSN in ../.env. Its schema comes from the git2 repo's
-  # migrations, never from this repo.
+  # The shared dev DB is not a service here: POSTGRES_DSN in ../.env points at
+  # the team's shared Supabase project, whose schema comes from the git2 repo's
+  # migrations. The `postgres` service below is a throwaway database for tests.
   app:
     build:
       context: ..
@@ -19,6 +19,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      postgres:
+        condition: service_healthy
     env_file:
       - path: ../.env
         required: false
@@ -28,6 +30,32 @@ services:
     environment:
       DOCKER_HOST: tcp://docker:2375
       REDIS_ADDR: redis:6379
+      TEST_POSTGRES_DSN: postgres://git2:git2@postgres:5432/git2_test?sslmode=disable
+
+  # ── Throwaway PostgreSQL for tests ─────────────────────────────────────
+  # Never the shared dev DB. On its first start it loads this repo's copy of
+  # the migrations (/docker-entrypoint-initdb.d); tests create and delete their
+  # own rows and re-apply the (idempotent) migrations themselves. Dev only,
+  # with a fixed password, and not published on the host: only `app` can
+  # reach it, as postgres:5432. Same setup as git2-codeplane's devcontainer.
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: git2
+      POSTGRES_PASSWORD: git2
+      POSTGRES_DB: git2_test
+    volumes:
+      - ../migrations:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "git2", "-d", "git2_test"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      # The first start runs initdb and loads migrations/, which took about
+      # two minutes on a Windows host. Failed checks in this window do not
+      # count; a passing one ends it at once.
+      start_period: 180s
 
   # ── Redis (stands in for the instance's shared Redis) ─────────────────
   # Same image as the git2 repo's devcontainer. Not published on the host:

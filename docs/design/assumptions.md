@@ -15,9 +15,9 @@ The other repos are still young, so we build against these assumptions until the
 | [A-09](#a-09--how-runners-reach-ci-svc) | How runners reach ci-svc | Ceyda | W3 | open |
 | [A-10](#a-10--who-checks-permissions) | Who checks permissions | everyone | W2 | open |
 | [A-11](#a-11--the-web-apps-reach-us-through-their-apis) | The web apps reach us through their APIs | Bilge, Beste | W5 | open |
-| [A-12](#a-12--ids-not-names) | IDs, not names | Apo | W1 | open |
-| [A-13](#a-13--one-outbox-format) | One outbox format | Apo, everyone | W4 | open |
-| [A-14](#a-14--one-go-version-one-dsn-variable) | One Go version, one DSN variable | everyone | W2 | open |
+| [A-12](#a-12--ids-not-names) | IDs, not names | Apo | W1 | **confirmed** 2026-10-30: codeplane ADR 0002 |
+| [A-13](#a-13--one-outbox-format) | One outbox format | Apo, everyone | W4 | format **confirmed** 2026-10-29 (codeplane ADR 0007); delivery path open (WBS-1.3) |
+| [A-14](#a-14--one-go-version-one-dsn-variable) | One Go version, one DSN variable | everyone | W2 | **confirmed** 2026-10-29: codeplane ADR 0010 moved to Go 1.26 and `POSTGRES_DSN` |
 | [A-15](#a-15--the-shared-redis) | The shared Redis | Ceyda, everyone | W2 | open |
 
 Weeks: W1 starts 26 Oct 2026, W2 2 Nov, W3 9 Nov, W4 16 Nov, W5 23 Nov, W6 30 Nov.
@@ -33,11 +33,13 @@ Weeks: W1 starts 26 Oct 2026, W2 2 Nov, W3 9 Nov, W4 16 Nov, W5 23 Nov, W6 30 No
 
 **We assume:** whatever delivers codeplane's `git.v1.RepositoryPushed` event (codeplane itself, or a shared outbox relay) calls our `TriggerPipeline` once per created or updated branch or tag in the event, with the event ID plus the ref as the idempotency key. Deleted refs trigger nothing. Delivery is at least once, and we drop duplicates.
 **If wrong:** ci-svc reads codeplane's events itself, which needs read access to its outbox.
+**Status (2026-10-30):** to be agreed with Apo in the WBS-1.3 design (W2). Who calls `TriggerPipeline` is not decided.
 
 ### A-03 · Reading `.git2-ci.yml` at a commit
 
 **We assume:** codeplane's gRPC API can return one file's content at a given commit. Its `repository.proto` plans this as `CommitService` for W2–W3.
 **If wrong:** pushes cannot start pipelines, and the M3 demo (11 Dec) is at risk.
+**Today (2026-10-29):** ci-svc reads files through a `Source` interface. In production it answers `UNAVAILABLE` until this RPC exists; in development `GIT2_CISVC_DEV_CONFIG_DIR` serves files from disk.
 
 ### A-04 · How a job gets the source code
 
@@ -84,15 +86,17 @@ Weeks: W1 starts 26 Oct 2026, W2 2 Nov, W3 9 Nov, W4 16 Nov, W5 23 Nov, W6 30 No
 
 **We assume:** we store only repository IDs and owner IDs (the UUIDs issued by codeplane and auth-svc), never names or slugs. Callers turn IDs into names for display. This is the same rule as codeplane's ADR 0002.
 **If wrong:** we would have to follow renames.
+**Confirmed on 2026-10-30** by Apo (review of PR #28): codeplane's ADR 0002 and its 26 Oct version note.
 
 ### A-13 · One outbox format
 
-**We assume:** every service writes its events to `<schema>.outbox` in the same transaction as the change: an ID (UUID), the type (the full proto message name, for example `ci.v1.PipelineFinished`), the payload (canonical protobuf JSON) and `created_at`. One shared relay delivers them at least once. codeplane is the first service to build this; we copy its format.
+**We assume:** every service writes its events to `<schema>.outbox` in the same transaction as the change: an ID (UUID), the type (the full proto message name, for example `ci.v1.PipelineFinished`), the payload (canonical protobuf JSON) and `created_at`. codeplane is the first service to build this; we copy its format.
+**Format confirmed** (codeplane ADR 0007). **Delivery still open:** a relay that reads every service's outbox would break the one-schema-per-service rule (codeplane ADR 0006), so how events leave each outbox is to be agreed in the WBS-1.3 design (W2). Delivery stays at least once.
 **If wrong:** we follow whatever format codeplane ships.
 
 ### A-14 · One Go version, one DSN variable
 
-**We assume:** the team settles on one Go version (git2 uses 1.26, codeplane 1.27) and one name for the database URL (`POSTGRES_DSN` in git2, `GIT2_DATABASE_URL` in codeplane). Until then we use Go 1.26 and `POSTGRES_DSN`, matching git2.
+**Confirmed on 2026-10-29:** codeplane's ADR 0010 moved it to Go 1.26 and `POSTGRES_DSN`, as in git2. All three repos now use Go 1.26 (devcontainers pin 1.26.10), `POSTGRES_DSN`, `POSTGRES_MAX_CONNS` and `TEST_POSTGRES_DSN`.
 **If wrong:** nothing breaks; we rename.
 
 ### A-15 · The shared Redis
