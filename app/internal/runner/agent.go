@@ -14,16 +14,31 @@ import (
 	civ1 "github.com/git2-project/git2-runner/app/gen/go/ci/v1"
 )
 
-// Agent timings. The heartbeat must come well within ci-svc's 60-second
-// lease.
-const (
-	requestTimeout   = 60 * time.Second
-	heartbeatEvery   = 15 * time.Second
-	reportTimeout    = 10 * time.Second
-	reportAttempts   = 6
-	maxBackoff       = 30 * time.Second
-	logFlushOnFinish = 30 * time.Second
-)
+// timings are the agent's intervals and timeouts. Tests shorten them.
+type timings struct {
+	request    time.Duration // deadline of one RequestJob long poll
+	heartbeat  time.Duration // between two heartbeats
+	call       time.Duration // deadline of one UpdateJob or AppendLog
+	backoff    time.Duration // first wait after a failed call
+	maxBackoff time.Duration // longest wait after failed calls
+	logFlush   time.Duration // how long the rest of a log may take to send when the job ends
+	flushEvery time.Duration // between two batches of log
+}
+
+// defaultTimings are the production values. The heartbeat must come well
+// within ci-svc's 60-second lease.
+var defaultTimings = timings{
+	request:    60 * time.Second,
+	heartbeat:  15 * time.Second,
+	call:       10 * time.Second,
+	backoff:    time.Second,
+	maxBackoff: 30 * time.Second,
+	logFlush:   30 * time.Second,
+	flushEvery: 500 * time.Millisecond,
+}
+
+// reportAttempts is how often the final status is sent before giving up.
+const reportAttempts = 6
 
 // ErrUnauthenticated means ci-svc no longer accepts the runner's token:
 // the runner was deleted and must be registered again.
@@ -34,30 +49,43 @@ type Agent struct {
 	Client   civ1.RunnerServiceClient
 	Executor Executor
 	Log      *slog.Logger
+
+	timings *timings // nil means defaultTimings
+}
+
+func (a *Agent) timing() *timings {
+	if a.timings != nil {
+		return a.timings
+	}
+	return &defaultTimings
 }
 
 // Run asks for jobs until ctx ends. A job that has started is finished
 // even after ctx ends, so a SIGTERM never leaves a job half-reported.
 func (a *Agent) Run(ctx context.Context) error {
-	backoff := time.Second
+	tm := a.timing()
+	backoff := tm.backoff
 	for ctx.Err() == nil {
-		reqCtx, cancel := context.WithTimeout(ctx, requestTimeout)
+		reqCtx, cancel := context.WithTimeout(ctx, tm.request)
 		resp, err := a.Client.RequestJob(reqCtx, &civ1.RequestJobRequest{})
 		cancel()
 		switch {
+		case err == nil:
+			backoff = tm.backoff
+			// Run a job even if ctx ended while its reply was on the way:
+			// ci-svc has leased it, and dropping it would fail it as
+			// RUNNER_LOST a minute later.
+			if job := resp.GetJob(); job != nil {
+				a.RunJob(context.WithoutCancel(ctx), job)
+			}
 		case ctx.Err() != nil:
 			return nil
 		case status.Code(err) == codes.Unauthenticated:
 			return ErrUnauthenticated
-		case err != nil:
+		default:
 			a.Log.Warn("ask ci-svc for a job", slog.String("err", err.Error()), slog.Duration("retry_in", backoff))
 			sleep(ctx, backoff)
-			backoff = min(backoff*2, maxBackoff)
-			continue
-		}
-		backoff = time.Second
-		if job := resp.GetJob(); job != nil {
-			a.RunJob(context.WithoutCancel(ctx), job)
+			backoff = min(backoff*2, tm.maxBackoff)
 		}
 	}
 	return nil
@@ -88,7 +116,8 @@ func (a *Agent) RunJob(ctx context.Context, job *civ1.JobAssignment) {
 			secrets = append(secrets, v.GetValue())
 		}
 	}
-	out := newLogShipper(a.Client, job.GetJobId(), secrets)
+	tm := a.timing()
+	out := newLogShipper(a.Client, job.GetJobId(), secrets, tm)
 	host, _ := os.Hostname()
 	fmt.Fprintf(out, "\x1b[1mRunning job %s on git2-runner %s (%s), image %s\x1b[0m\n",
 		job.GetName(), Version, host, job.GetImage())
@@ -117,7 +146,7 @@ func (a *Agent) RunJob(ctx context.Context, job *civ1.JobAssignment) {
 	switch {
 	case errors.Is(cause, errLost):
 		log.Warn("job taken away by ci-svc; not reporting it")
-		out.Close(context.Background())
+		out.Discard() // ci-svc refuses the job's log too
 		return
 	case errors.Is(cause, errCanceled):
 		fmt.Fprintln(out, "\n\x1b[31;1mThe job was canceled.\x1b[0m")
@@ -138,16 +167,17 @@ func (a *Agent) RunJob(ctx context.Context, job *civ1.JobAssignment) {
 
 	// The whole log goes before the final status, so log followers see
 	// every byte before the stream ends.
-	flushCtx, cancelFlush := context.WithTimeout(ctx, logFlushOnFinish)
+	flushCtx, cancelFlush := context.WithTimeout(ctx, tm.logFlush)
 	out.Close(flushCtx)
 	cancelFlush()
 	a.report(ctx, log, req)
 }
 
-// heartbeat extends the job's lease every heartbeatEvery and cancels the
-// job when ci-svc says it was canceled or is no longer this runner's.
+// heartbeat extends the job's lease every timings.heartbeat and cancels
+// the job when ci-svc says it was canceled or is no longer this runner's.
 func (a *Agent) heartbeat(ctx context.Context, jobID string, cancel context.CancelCauseFunc) {
-	t := time.NewTicker(heartbeatEvery)
+	tm := a.timing()
+	t := time.NewTicker(tm.heartbeat)
 	defer t.Stop()
 	for {
 		select {
@@ -155,7 +185,7 @@ func (a *Agent) heartbeat(ctx context.Context, jobID string, cancel context.Canc
 			return
 		case <-t.C:
 		}
-		hbCtx, done := context.WithTimeout(ctx, reportTimeout)
+		hbCtx, done := context.WithTimeout(ctx, tm.call)
 		resp, err := a.Client.UpdateJob(hbCtx, &civ1.UpdateJobRequest{JobId: jobID, Status: civ1.JobStatus_JOB_STATUS_RUNNING})
 		done()
 		switch status.Code(err) {
@@ -177,23 +207,34 @@ func (a *Agent) heartbeat(ctx context.Context, jobID string, cancel context.Canc
 
 // report sends the final status, retrying while ci-svc is unreachable.
 func (a *Agent) report(ctx context.Context, log *slog.Logger, req *civ1.UpdateJobRequest) {
-	backoff := time.Second
+	tm := a.timing()
+	backoff := tm.backoff
 	for attempt := 1; ; attempt++ {
-		rCtx, cancel := context.WithTimeout(ctx, reportTimeout)
+		rCtx, cancel := context.WithTimeout(ctx, tm.call)
 		_, err := a.Client.UpdateJob(rCtx, req)
 		cancel()
-		code := status.Code(err)
 		switch {
 		case err == nil:
 			log.Info("job finished", slog.String("status", req.GetStatus().String()))
 			return
-		case code == codes.NotFound || code == codes.FailedPrecondition || code == codes.InvalidArgument || attempt == reportAttempts:
+		case permanent(err) || attempt == reportAttempts:
 			log.Error("report job result", slog.String("err", err.Error()))
 			return
 		}
 		sleep(ctx, backoff)
-		backoff = min(backoff*2, maxBackoff)
+		backoff = min(backoff*2, tm.maxBackoff)
 	}
+}
+
+// permanent reports whether ci-svc would refuse a retry of a job's call
+// too: the job is finished or not this runner's, the request is wrong, or
+// the runner was deleted.
+func permanent(err error) bool {
+	switch status.Code(err) {
+	case codes.NotFound, codes.FailedPrecondition, codes.InvalidArgument, codes.Unauthenticated:
+		return true
+	}
+	return false
 }
 
 func ptr[T any](v T) *T { return &v }
