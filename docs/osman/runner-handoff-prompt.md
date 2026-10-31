@@ -11,10 +11,8 @@ I am not a gRPC specialist: when you explain a design, say it in plain terms fir
 ## 1. Get oriented (do this first, before any code)
 
 1. Read, in this order: `CLAUDE.md` (hard rules, commands, conventions; they override your defaults), `docs/CLAUDE.md` (how docs and version notes work), `docs/design/plan.md` (architecture), `docs/decisions/` (ADRs 0001–0009, especially 0002, 0005, 0006 and 0008), `docs/api/runners.md` (the runner protocol and how to install a runner), `docs/version_notes/overview.md` and the notes of 29 and 31 Oct.
-2. Find the right branch. Run `gh pr view 28 -R git2-project/git2-runner --json state,mergedAt`.
-   - If PR #28 is **merged**: `git switch main && git pull`, then branch from `main`.
-   - If it is still **open**: it has review fixes pending approval. Branch from `origin/feat/ci-v1-v0` and say so in your PR (it will be rebased onto `main` after #28 merges). Never push to `feat/ci-v1-v0` yourself.
-3. Check the board: `gh issue list -R git2-project/git2-runner` and the **Runner** view of org project #1 (https://github.com/orgs/git2-project/projects/1). Runner issues: #23 (hardening), #17 (images, CI workflow), #19 (source checkout, blocked).
+2. Work from `main`: `git switch main && git pull`. PR #28 (contract v0, ci-svc, runner v0 and Apo's review fixes) was merged into `main` on 2026-10-31. `feat/ci-v1-v0` is finished; never build on it or push to it. Start each task on a new branch from `main`.
+3. Check the board: `gh issue list -R git2-project/git2-runner` and the **Runner** view of org project #1 (https://github.com/orgs/git2-project/projects/1). Your issues, in order: **#29** (agent and log shipper tests), **#30** (crash leftovers), **#31** (`concurrent`), **#17** (images, CI workflow). Later or blocked: #32 (Kubernetes executor), #19 (source checkout, waits for codeplane). #23 is only the parent of #30–#32. Not yours: #33 (I agree the push and event path with Apo), and the migration, which is git2 PR #13 (not merged yet; the runner never needs it).
 4. Prove the environment works **before** changing anything: `cd app && make tests && make lint`, and `make tests-docker` if Docker is available. In the devcontainer everything is provided. Outside it, read "Outside the devcontainer" in `CLAUDE.md` (Go toolchain, throwaway Postgres, zsh). Report the result to me in two lines.
 
 ## 2. What exists today (verified on 2026-10-31)
@@ -34,7 +32,7 @@ I am not a gRPC specialist: when you explain a design, say it in plain terms fir
 
 Do them as separate small PRs, one per item. For each: tests first or alongside, `make lint` clean, docs if anyone outside the repo can notice it.
 
-### 3.1 Unit tests for the agent and the log shipper (start here)
+### 3.1 Unit tests for the agent and the log shipper (start here, issue #29)
 `agent.go` and `logship.go` have **no unit tests**. Write them with a fake `civ1.RunnerServiceClient` and a fake `Executor` (no network, no Docker). Make the timings injectable (unexported fields or package vars set by tests) so tests run in milliseconds. Cover at least:
 - success, script failure (exit code clamped to -1..255), executor failure reason passed through;
 - timeout → `FAILED` + `TIMEOUT`; cancel via heartbeat → job stopped and reported as the server expects; heartbeat `NOT_FOUND` → job stopped and **not** reported;
@@ -44,10 +42,10 @@ Do them as separate small PRs, one per item. For each: tests first or alongside,
 - log shipping: offsets are contiguous, a failed `AppendLog` is resent at the confirmed offset, truncation stops sending, everything is flushed before the final `UpdateJob`, and no secret value ever reaches the fake client.
 If a test exposes a bug, fix it in the same PR and tell me what it was.
 
-### 3.2 Clean up leftovers after a crash (issue #23, first bullet)
+### 3.2 Clean up leftovers after a crash (issue #30)
 If the runner or the host dies mid-job, its container, network and volume stay behind. At startup, remove the resources **of this runner only**. Several runners may share one Docker daemon, so first add a second label, `io.git2.runner-id=<runner_id>`, to everything the executor creates, then remove only resources with this runner's ID at `run` startup. Log what was removed. Integration test with `//go:build integration`.
 
-### 3.3 Run several jobs at once (issue #23, second bullet)
+### 3.3 Run several jobs at once (issue #31)
 Add `concurrent` (default 1) to the runner config. N worker loops share one gRPC connection; each runs one job at a time. Keep SIGTERM behaviour (all running jobs finish), and keep log lines tagged by `job_id`. Document it in `docs/api/runners.md`.
 
 ### 3.4 Shipping the runner (issue #17, runner part)
@@ -57,12 +55,13 @@ Add `concurrent` (default 1) to the runner config. N worker loops share one gRPC
 
 ### 3.5 Later, ask me first
 - Source checkout (#19): needs a new `RunnerService` RPC that streams the job's source, and codeplane's archive RPC (A-04). That is a contract change plus an ADR; propose the design to me before writing code.
-- Kubernetes executor, private registry credentials, caches (WBS-10.6).
+- Kubernetes executor (#32), private registry credentials, caches (WBS-10.6).
+- Tagging `app/v0.1.0` (so other services can `go get` the contract): mine to do, since the Go module proxy keeps a tag forever.
 
 ## 4. Rules you must not break
 
 - **PRs only.** Never commit or push to `main`. Branch names `feat/runner-…`, `fix/runner-…`, `test/runner-…`. Conventional commits, small and focused, ending with the co-author line the harness gives you.
-- Open PRs into `main` with **`ceydaakin`** as reviewer and me as assignee, and link the issue (`Closes #N`) so the board moves it. Ask me before merging anything; don't push or open PRs unless I said so in this session.
+- Open PRs into `main` with **`ceydaakin`** as reviewer and me as assignee, and link the issue (`Closes #N`) so the board moves it. When you start an issue, move it to **In progress** on the board; when its PR is open, to **In review** (`gh project item-edit`; Status field of project #1). Closing an issue moves it to Done. Ask me before merging anything; don't push or open PRs unless I said so in this session.
 - **Build hosts are untrusted.** The runner only ever holds its own token and, during a job, that job's variables. Never write secrets to disk, a command line, or a log. Never bind-mount host paths into job containers (the daemon may be remote or Docker-in-Docker): use volumes and the API.
 - **No migrations here.** The schema lives in the git2 repo (`migrations/003_ci_pipelines.sql`); this repo keeps a byte-identical copy for tests. The runner should never need one.
 - **Never edit other repos** (`git2`, `git2-codeplane`, `git2-deploy`). Write what they must change as an action item in a version note, or ask me to open an issue.
