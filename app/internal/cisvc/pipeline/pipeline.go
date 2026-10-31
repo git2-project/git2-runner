@@ -15,8 +15,20 @@
 //   - Signals (package notify) wake waiting runners and log followers. They
 //     are an optimization: every waiter also polls on a timer.
 //
-// Lock order, to keep deadlocks rare: job rows first, then the pipeline
-// row. Transactions run through db.InTx, which retries after a deadlock.
+// Lock order (ADR 0006). Every transaction:
+//
+//  1. locks the job rows it starts from, in (stage_index, id) order: one
+//     job for a lease, a result, a log chunk or the reaper, and all of a
+//     pipeline's jobs for CancelPipeline;
+//  2. then the pipeline row (advance);
+//  3. then, only through advance, jobs of later stages that are still
+//     created (to queue or skip them).
+//
+// A transaction waiting for a later-stage row therefore always holds an
+// earlier-stage one, and CancelPipeline takes earlier stages first, so no
+// two transactions wait for each other. Ordering CancelPipeline's locks by
+// id alone did deadlock, because job IDs follow the order of the file, not
+// of the stages. db.InTx still retries deadlocks as a safety net.
 package pipeline
 
 import (

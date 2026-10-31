@@ -23,7 +23,15 @@ We also looked again at a "real" queue (a message broker, or a Redis list or str
 
 **Logs.** `AppendLog` is a unary call, not the client stream sketched in the plan: idempotent by byte offset, so a retry after a timeout cannot duplicate output, and simple behind proxies. Each call is one row in `job_log_chunks`. A log is capped at 4 MiB, then a notice is appended and later output is dropped. `StreamJobLog` reads the rows and, with `follow`, waits for a `ci:log:<job_id>` signal or polls every second. The signal carries no data: followers always read Postgres. Archiving finished logs to the bucket comes with artifacts (W6); until then logs stay in Postgres, which the backup covers.
 
-**Locks.** Every transaction locks job rows before the pipeline row, and a transaction aborted by a deadlock or serialization failure is retried up to three times.
+**Locks.** Every transaction locks, in this order:
+
+1. the job rows it starts from, in `(stage_index, id)` order: one job for a lease, a result, a log chunk or the reaper; all of a pipeline's jobs for `CancelPipeline`;
+2. the pipeline row;
+3. only then, to queue or skip them, jobs of later stages that are still `created`.
+
+A transaction that waits for a later-stage row always holds an earlier-stage one, and `CancelPipeline` takes earlier stages first, so no two transactions can wait for each other. A transaction aborted by a deadlock or serialization failure is still retried up to three times, as a safety net.
+
+*Revised 2026-10-31, after Apo's review of PR #28.* The first version said "job rows before the pipeline row", which was not true: queueing the next stage writes job rows after the pipeline row. `CancelPipeline` locked jobs by ID, and job IDs follow the order of the file, not of the stages. So with a later-stage job written first in `.git2-ci.yml`, canceling while a job reported its result deadlocked. `TestCancelRacesWithResults` reproduced it (51 aborted calls in 10 runs with retries turned off) and passes without retries since the fix.
 
 **Events.** `PipelineCreated`, `JobFinished` (once per job, `skipped` included) and `PipelineFinished` (once per pipeline) go to `ci_svc.outbox` in the transaction that makes the change.
 

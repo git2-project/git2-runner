@@ -201,8 +201,11 @@ func (s *Service) Cancel(ctx context.Context, id uuid.UUID) (Pipeline, error) {
 	var running []uuid.UUID
 	err = db.InTx(ctx, s.pool, func(tx pgx.Tx) error {
 		running = nil
-		// Lock the jobs first, then (in advance) the pipeline.
-		if _, err := tx.Exec(ctx, `SELECT id FROM ci_svc.jobs WHERE pipeline_id = $1 ORDER BY id FOR UPDATE`, id); err != nil {
+		// Lock the jobs in stage order first, then (in advance) the
+		// pipeline. Stage order matters: a job's result holds its own row
+		// and then queues later-stage jobs, so locking those first could
+		// close a cycle (see the package comment).
+		if _, err := tx.Exec(ctx, `SELECT id FROM ci_svc.jobs WHERE pipeline_id = $1 ORDER BY stage_index, id FOR UPDATE`, id); err != nil {
 			return fmt.Errorf("lock jobs: %w", err)
 		}
 		rows, err := tx.Query(ctx, `

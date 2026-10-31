@@ -725,3 +725,82 @@ func TestConcurrentLease(t *testing.T) {
 		}
 	})
 }
+
+// TestCancelRacesWithResults cancels pipelines while their jobs report
+// their results at the same moment. Those transactions lock the same job
+// and pipeline rows in different orders, so PostgreSQL may abort one with
+// a deadlock; db.InTx must retry it, and every pipeline must still end in
+// a final status with no RPC failing (ADR 0006, "Locks").
+func TestCancelRacesWithResults(t *testing.T) {
+	forEachMode(t, func(t *testing.T, e *env) {
+		const rounds, jobs = 8, 4
+		var b strings.Builder
+		// The second-stage job comes first in the file, so it gets the
+		// lowest job ID: CancelPipeline locks it first, while a job's
+		// result locks its own row and then wants it to queue it. That is
+		// the lock cycle the retry has to handle.
+		b.WriteString("stages: [one, two]\n")
+		b.WriteString("z:\n  stage: two\n  image: alpine\n  tags: [TAG]\n  script: [\"true\"]\n")
+		for i := range jobs {
+			fmt.Fprintf(&b, "a%d:\n  stage: one\n  image: alpine\n  tags: [TAG]\n  script: [\"true\"]\n", i)
+		}
+		repo := e.newRepo(t, b.String())
+		runnerCtx, _ := e.newRunner(t)
+
+		for round := range rounds {
+			p := e.trigger(t, repo)
+			var leased []string
+			for range jobs {
+				leased = append(leased, e.requestJob(runnerCtx, t).GetJobId())
+			}
+			var wg sync.WaitGroup
+			errs := make(chan error, jobs+1)
+			start := make(chan struct{})
+			for _, id := range leased {
+				wg.Add(1)
+				go func() {
+					defer wg.Done()
+					<-start
+					exit := int32(0)
+					_, err := e.rs.UpdateJob(runnerCtx, &civ1.UpdateJobRequest{JobId: id, Status: civ1.JobStatus_JOB_STATUS_SUCCESS, ExitCode: &exit})
+					// A job canceled first may already be final; that is the
+					// documented answer, not a failure.
+					if err != nil && status.Code(err) != codes.FailedPrecondition {
+						errs <- fmt.Errorf("UpdateJob: %w", err)
+					}
+				}()
+			}
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				<-start
+				if _, err := e.ps.CancelPipeline(t.Context(), &civ1.CancelPipelineRequest{Id: p.GetId()}); err != nil {
+					errs <- fmt.Errorf("CancelPipeline: %w", err)
+				}
+			}()
+			close(start)
+			wg.Wait()
+			close(errs)
+			for err := range errs {
+				t.Errorf("round %d: %v", round, err)
+			}
+			got := e.get(t, p.GetId())
+			switch got.GetStatus() {
+			case civ1.PipelineStatus_PIPELINE_STATUS_CANCELED, civ1.PipelineStatus_PIPELINE_STATUS_SUCCESS:
+			default:
+				// Results that arrived before the cancel leave the second
+				// stage pending or running; nothing else may be left.
+				if got.GetStatus() != civ1.PipelineStatus_PIPELINE_STATUS_RUNNING && got.GetStatus() != civ1.PipelineStatus_PIPELINE_STATUS_PENDING {
+					t.Fatalf("round %d: pipeline %v: %s", round, got.GetStatus(), jobStatuses(got))
+				}
+			}
+			for _, s := range got.GetStages()[:1] {
+				for _, j := range s.GetJobs() {
+					if j.GetStatus() != civ1.JobStatus_JOB_STATUS_SUCCESS && j.GetStatus() != civ1.JobStatus_JOB_STATUS_CANCELED {
+						t.Fatalf("round %d: first-stage job %s is %v", round, j.GetName(), j.GetStatus())
+					}
+				}
+			}
+		}
+	})
+}
