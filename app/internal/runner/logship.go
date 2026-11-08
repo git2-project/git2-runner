@@ -10,39 +10,38 @@ import (
 
 // Log shipping limits.
 const (
-	flushEvery = 500 * time.Millisecond
 	// maxSend is the most bytes one AppendLog carries; ci-svc accepts 256 KiB.
 	maxSend = 128 << 10
 	// maxBuffered is how much output waits for ci-svc before the oldest is
 	// dropped. A job printing faster than ci-svc accepts loses log, never
 	// time.
 	maxBuffered = 8 << 20
-	sendTimeout = 10 * time.Second
 )
 
 // logShipper is the io.Writer a job's output goes to. It masks secrets,
-// then sends the bytes to ci-svc with AppendLog every flushEvery, from the
-// offset ci-svc confirmed last. A failed send is retried on the next
-// flush; ci-svc ignores bytes it already has.
+// then sends the bytes to ci-svc with AppendLog every timings.flushEvery,
+// from the offset ci-svc confirmed last. A failed send is retried on the
+// next flush; ci-svc ignores bytes it already has.
 type logShipper struct {
 	client civ1.RunnerServiceClient
 	jobID  string
+	tm     *timings
 
-	mu        sync.Mutex
-	mask      *masker
-	buf       []byte // masked, not yet confirmed by ci-svc
-	offset    int64  // log size ci-svc confirmed
-	truncated bool   // ci-svc reached its size limit
+	mu      sync.Mutex
+	mask    *masker
+	buf     []byte // masked, not yet confirmed by ci-svc
+	offset  int64  // log size ci-svc confirmed
+	stopped bool   // ci-svc truncated or refused the log: send nothing more
 
 	kick chan struct{}
 	done chan struct{}
 	stop context.CancelFunc
 }
 
-func newLogShipper(client civ1.RunnerServiceClient, jobID string, secrets []string) *logShipper {
+func newLogShipper(client civ1.RunnerServiceClient, jobID string, secrets []string, tm *timings) *logShipper {
 	ctx, cancel := context.WithCancel(context.Background())
 	s := &logShipper{
-		client: client, jobID: jobID, mask: newMasker(secrets),
+		client: client, jobID: jobID, tm: tm, mask: newMasker(secrets),
 		kick: make(chan struct{}, 1), done: make(chan struct{}), stop: cancel,
 	}
 	go s.loop(ctx)
@@ -66,7 +65,7 @@ func (s *logShipper) Write(p []byte) (int, error) {
 
 // append adds masked bytes; the caller holds mu.
 func (s *logShipper) append(b []byte) {
-	if s.truncated {
+	if s.stopped {
 		return
 	}
 	s.buf = append(s.buf, b...)
@@ -79,7 +78,7 @@ func (s *logShipper) append(b []byte) {
 
 func (s *logShipper) loop(ctx context.Context) {
 	defer close(s.done)
-	t := time.NewTicker(flushEvery)
+	t := time.NewTicker(s.tm.flushEvery)
 	defer t.Stop()
 	for {
 		select {
@@ -93,11 +92,12 @@ func (s *logShipper) loop(ctx context.Context) {
 }
 
 // flush sends what is buffered, in pieces of at most maxSend bytes. It
-// stops at the first error and leaves the rest for the next flush.
+// stops at the first error and leaves the rest for the next flush. It
+// reports whether nothing is left to send.
 func (s *logShipper) flush(ctx context.Context) bool {
 	for {
 		s.mu.Lock()
-		if len(s.buf) == 0 || s.truncated {
+		if len(s.buf) == 0 || s.stopped {
 			s.mu.Unlock()
 			return true
 		}
@@ -106,9 +106,17 @@ func (s *logShipper) flush(ctx context.Context) bool {
 		offset := s.offset
 		s.mu.Unlock()
 
-		sendCtx, cancel := context.WithTimeout(ctx, sendTimeout)
+		sendCtx, cancel := context.WithTimeout(ctx, s.tm.call)
 		resp, err := s.client.AppendLog(sendCtx, &civ1.AppendLogRequest{JobId: s.jobID, Offset: offset, Data: chunk})
 		cancel()
+		if permanent(err) {
+			// The job is finished or no longer this runner's: every retry
+			// would be refused too.
+			s.mu.Lock()
+			s.stopped, s.buf = true, nil
+			s.mu.Unlock()
+			return true
+		}
 		if err != nil {
 			return false
 		}
@@ -125,7 +133,7 @@ func (s *logShipper) flush(ctx context.Context) bool {
 			s.offset = size
 		}
 		if resp.GetTruncated() {
-			s.truncated = true
+			s.stopped = true
 			s.buf = nil
 		}
 		s.mu.Unlock()
@@ -145,7 +153,14 @@ func (s *logShipper) Close(ctx context.Context) {
 		}
 		select {
 		case <-ctx.Done():
-		case <-time.After(time.Second):
+		case <-time.After(s.tm.backoff):
 		}
 	}
+}
+
+// Discard stops sending and drops what is still buffered, for a job whose
+// log ci-svc no longer takes.
+func (s *logShipper) Discard() {
+	s.stop()
+	<-s.done
 }
