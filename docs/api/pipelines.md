@@ -108,6 +108,12 @@ For the ✓/✗ next to a commit or merge request, take the newest pipeline of t
 
 Cancels every unfinished job. Waiting jobs (`CREATED`, `PENDING`) become `CANCELED` at once. `RUNNING` jobs are stopped by their runner within about 15 seconds and then show `CANCELED`; until then the response still shows them `RUNNING`. Canceling a finished pipeline is not an error and changes nothing.
 
+## Retrying
+
+**A whole pipeline** (the "Retry" button on a pipeline, git2-mcp's `retry_pipeline`): call [`TriggerPipeline`](#triggerpipeline) with the old pipeline's `repository_id`, `ref` and `commit_sha`, `trigger: PIPELINE_TRIGGER_MANUAL`, your user's `triggered_by_id`, and a **new** `idempotency_key`: a UUID made when the user clicks and reused if you retry the call. ci-svc reads `.git2-ci.yml` at that commit again and creates a new pipeline. The old pipeline stays as it was.
+
+**One job** (`RetryJob`) comes in W4 (git2-runner #16). It will add a new attempt of a finished job to the same pipeline and keep the earlier attempt's log. Until then, retry the whole pipeline.
+
 ## StreamJobLog
 
 Sends a job's log as raw bytes from `offset` on. Each message has `offset` (position of its first byte) and `data` (never empty).
