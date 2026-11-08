@@ -125,6 +125,31 @@ func TestLogShipperStopsWhenTruncated(t *testing.T) {
 	}
 }
 
+// TestLogShipperNoBusyLoopWithoutProgress checks that a reply that does
+// not move the log ends the flush instead of resending at once (#35).
+func TestLogShipperNoBusyLoopWithoutProgress(t *testing.T) {
+	t.Parallel()
+	f := newFakeCI(t)
+	f.appendStall = func(n int) bool { return n == 1 }
+	s := newTestShipper(f)
+	ctx := context.Background()
+	_, _ = io.WriteString(s, "line\n")
+	var sent bool
+	within(t, "flush", func() { sent = s.flush(ctx) })
+	if sent {
+		t.Error("flush reported everything sent, but ci-svc stored nothing")
+	}
+	if n := len(f.appendCalls()); n != 1 {
+		t.Errorf("%d AppendLog calls in one flush, want 1: no resend before the next flush", n)
+	}
+	within(t, "Close", func() { s.Close(ctx) })
+
+	if got := f.storedLog(); got != "line\n" {
+		t.Errorf("stored log %q, want %q", got, "line\n")
+	}
+	checkOffsets(t, f.appendCalls())
+}
+
 // TestLogShipperStopsWhenRefused checks that the shipper stops sending
 // once ci-svc refuses the log for good, instead of retrying forever.
 func TestLogShipperStopsWhenRefused(t *testing.T) {

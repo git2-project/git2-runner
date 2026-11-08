@@ -121,22 +121,29 @@ func (s *logShipper) flush(ctx context.Context) bool {
 			return false
 		}
 
+		size, truncated := resp.GetSize(), resp.GetTruncated()
 		s.mu.Lock()
 		// ci-svc's size says where its log ends. Normally that is
 		// offset+n; after dropped output it can be lower, and then we
 		// continue from where ci-svc is.
-		if size := resp.GetSize(); size > s.offset {
+		if size > s.offset {
 			consumed := min(int(size-s.offset), len(s.buf))
 			s.buf = s.buf[consumed:]
 			s.offset = size
 		} else if size < s.offset {
 			s.offset = size
 		}
-		if resp.GetTruncated() {
+		if truncated {
 			s.stopped = true
 			s.buf = nil
 		}
 		s.mu.Unlock()
+		if size == offset && !truncated {
+			// ci-svc took nothing. Sending again at once would loop as
+			// fast as it answers, so treat it like a failed call and try
+			// again at the next flush.
+			return false
+		}
 	}
 }
 
