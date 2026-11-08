@@ -5,7 +5,12 @@ ci-svc publishes domain events through its outbox, in the team's format (the sam
 ## Delivery
 
 - Each event is written to `ci_svc.outbox` **in the same transaction** as the change it describes: an event exists if and only if the change happened.
-- **How rows leave the outbox is not decided yet.** The delivery path is to be agreed with codeplane in the WBS-1.3 design (W2). Whatever it is, delivery is **at least once**: you may see an event twice, so drop duplicates by `event_id`.
+- **How rows leave the outbox** ([ADR 0010](../decisions/0010-events-delivered-by-eventsink-push.md), agreed with codeplane on 8 Nov):
+  - ci-svc's relay calls `events.v1.EventSink.Deliver` on every service subscribed to an event type. `events.v1` is defined in git2-codeplane, with a pointer in git2's `contracts/events/`.
+  - To receive our events, serve `EventSink` on your internal port and ask Osman to add you as a subscriber.
+  - Answer `OK` once you have stored the event, and do the work afterwards. Answer `UNAVAILABLE` to have it retried later, and `INVALID_ARGUMENT` or `UNIMPLEMENTED` only for an event you can never handle.
+  - The relay is not built yet (W4, with git2-runner #20).
+  - Delivery is **at least once**: you may see an event twice, so drop duplicates by `event_id`.
 - Order is not guaranteed across pipelines. Within one pipeline, `PipelineCreated` is written before any `JobFinished`, and `PipelineFinished` after the last `JobFinished`, but delivery may still reorder them. Use `occurred_at` and the status, not arrival order.
 
 | Column | Content |

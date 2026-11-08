@@ -53,7 +53,13 @@ Starts a pipeline for one commit. **Idempotent on `idempotency_key`**: the same 
 | `triggered_by_id` | auth-svc user ID, or empty |
 | `idempotency_key` | 1–512 bytes of UTF-8 text without control characters, so `"<event_id>:<ref>"` fits every valid ref (refs may be non-ASCII, up to 255 bytes). Required. For a push: `"<event_id>:<ref>"`. For a button: a UUID made when the user clicks, reused on retry |
 
-**For pushes.** Who calls `TriggerPipeline` for codeplane's `git.v1.RepositoryPushed` is still to be agreed with codeplane (WBS-1.3, W2). Whoever does: call it once per entry of `ref_updates` whose `new_sha` is not all zeros (deleted refs start nothing), with `commit_sha = new_sha`. Treat `NOT_FOUND` as "this repository has no CI" (do not retry). Retry `UNAVAILABLE`.
+**For pushes, nobody calls `TriggerPipeline`.** codeplane's relay delivers `git.v1.RepositoryPushed` to ci-svc's `events.v1.EventSink` ([ADR 0010](../decisions/0010-events-delivered-by-eventsink-push.md)), and ci-svc starts the pipelines itself.
+- It runs the same trigger once per entry of `ref_updates` whose `new_sha` is not all zeros, with `commit_sha = new_sha` and the idempotency key `"<event_id>:<ref>"`.
+- Deleted refs, `refs/notes/*` and refs over 255 bytes start nothing.
+- A commit without `.git2-ci.yml` starts nothing.
+- Built in W4 (git2-runner #20).
+
+`TriggerPipeline` is for manual runs (dash-api's "run pipeline") and for development. Treat `NOT_FOUND` as "this repository has no CI" (do not retry). Retry `UNAVAILABLE`.
 
 ```sh
 grpcurl -plaintext -d '{

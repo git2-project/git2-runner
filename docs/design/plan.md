@@ -105,7 +105,7 @@ Built on 2026-10-29: [`app/proto/ci/v1/`](../../app/proto/ci/v1/), documented in
 
 | Service | RPC | Called by | What it does |
 |---|---|---|---|
-| PipelineService | `TriggerPipeline` | whoever delivers codeplane's push event; dash-api ("run pipeline") | Creates a pipeline for (repository_id, ref, commit_sha). Idempotent on `idempotency_key` (the push event's ID), so at-least-once delivery never runs a pipeline twice |
+| PipelineService | `TriggerPipeline` | dash-api ("run pipeline"); ci-svc itself for pushes it receives through `events.v1.EventSink` (ADR 0010) | Creates a pipeline for (repository_id, ref, commit_sha). Idempotent on `idempotency_key` (the push event's ID), so at-least-once delivery never runs a pipeline twice |
 | | `GetPipeline`, `ListPipelines` | dash-api | A repository's or ref's pipelines, with their jobs and statuses |
 | | `CancelPipeline`, `RetryJob` | dash-api | |
 | | `GetJob`, `StreamJobLog` | dash-api | The log from a byte offset. With `follow`, the stream stays open until the job ends |
@@ -295,6 +295,7 @@ Decided by Osman on 2026-10-26.
 | Q7 | Where do CI secrets live and get their API? | In ci-svc (`SecretService`), not in git2 | [0007](../decisions/0007-ci-secrets-live-in-ci-svc.md) |
 | Q8 | Docker CLI or Engine API in the runner? | Engine API | [0008](../decisions/0008-runner-uses-the-docker-engine-api.md) |
 | Q9 | How do our tests get the schema? | A copy of the git2 migration, as in codeplane | [0009](../decisions/0009-schema-copy-tooling-and-tests.md) |
+| Q10 | How do events leave each outbox, and who turns a push into pipelines? | Each producer's relay pushes to `events.v1.EventSink`; ci-svc records `RepositoryPushed` in `ci_svc.inbox` and starts the pipelines itself (agreed with Apo, 8 Nov) | [0010](../decisions/0010-events-delivered-by-eventsink-push.md) |
 
 The questions for the other lanes are in [assumptions.md](assumptions.md).
 

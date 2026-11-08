@@ -19,6 +19,12 @@ the right month folder and add a line at the top of that month's table below.
 
 ---
 
+## 2026 · November
+
+| Date | What changed | Affects | Tag |
+|---|---|---|---|
+| [8 Nov](2026/11/08_11.md) | Agreed with codeplane (ADR 0010): each producer's relay pushes its outbox to `events.v1.EventSink.Deliver`. ci-svc records `RepositoryPushed` and starts the pipelines itself, so nobody calls `TriggerPipeline` for pushes. Codeplane publishes `events.v1` and builds the relay; Dash plans an `EventSink` for `PipelineFinished`; Deploy wires relay subscribers. | Codeplane, Dash, Deploy | 🟠 Action |
+
 ## 2026 · October
 
 | Date | What changed | Affects | Tag |
