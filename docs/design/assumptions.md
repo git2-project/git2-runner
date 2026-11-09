@@ -6,7 +6,7 @@ The other repos are still young, so we build against these assumptions until the
 |---|---|---|---|---|
 | [A-01](#a-01--ci-svc-lives-in-git2-runner) | ci-svc lives in git2-runner | Osman, Bilge and Beste informed | W1 | **confirmed** 2026-10-26 ([ADR 0001](../decisions/0001-ci-svc-lives-in-git2-runner.md)) |
 | [A-02](#a-02--how-a-push-reaches-us) | How a push reaches us | Apo | W4 | **agreed** 2026-11-08 ([ADR 0010](../decisions/0010-events-delivered-by-eventsink-push.md)) |
-| [A-03](#a-03--reading-git2-ciyml-at-a-commit) | Reading `.git2-ci.yml` at a commit | Apo | W4 | open |
+| [A-03](#a-03--reading-git2-ciyml-at-a-commit) | Reading `.git2-ci.yml` at a commit | Apo | W4 | **confirmed** 2026-11-09: `CommitService.GetBlob`, git2-codeplane `v0.2.0` |
 | [A-04](#a-04--how-a-job-gets-the-source-code) | How a job gets the source code | Apo | W4 | open |
 | [A-05](#a-05--the-ci-secrets-key-is-in-every-backup) | The CI secrets key is in every backup | Ceyda | W5 | open |
 | [A-06](#a-06--one-bucket-and-our-prefix) | One bucket, and our prefix | Ceyda | W6 | open |
@@ -42,7 +42,8 @@ Weeks: W1 starts 26 Oct 2026, W2 2 Nov, W3 9 Nov, W4 16 Nov, W5 23 Nov, W6 30 No
 
 **We assume:** codeplane's gRPC API can return one file's content at a given commit. Its `repository.proto` plans this as `CommitService` for W2–W3.
 **If wrong:** pushes cannot start pipelines, and the M3 demo (11 Dec) is at risk.
-**Today (2026-10-29):** ci-svc reads files through a `Source` interface. In production it answers `UNAVAILABLE` until this RPC exists; in development `GIT2_CISVC_DEV_CONFIG_DIR` serves files from disk.
+**Confirmed on 2026-11-09:** `CommitService.GetBlob` (git2-codeplane `v0.2.0`, codeplane #8) returns one file at a ref, and `ref` may be a full commit SHA. `NOT_FOUND` with `path not found` means the commit has no `.git2-ci.yml`. ci-svc treats a reply marked `binary`, `lfs` or `truncated`, or a symlink, as an invalid config.
+**Until #18 (2026-10-29):** ci-svc reads files through a `Source` interface. In production it answers `UNAVAILABLE` until this RPC exists; in development `GIT2_CISVC_DEV_CONFIG_DIR` serves files from disk.
 
 ### A-04 · How a job gets the source code
 

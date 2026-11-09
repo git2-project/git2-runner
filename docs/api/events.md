@@ -8,7 +8,9 @@ ci-svc publishes domain events through its outbox, in the team's format (the sam
 - **How rows leave the outbox** ([ADR 0010](../decisions/0010-events-delivered-by-eventsink-push.md), agreed with codeplane on 8 Nov):
   - ci-svc's relay calls `events.v1.EventSink.Deliver` on every service subscribed to an event type. `events.v1` is defined in git2-codeplane, with a pointer in git2's `contracts/events/`.
   - To receive our events, serve `EventSink` on your internal port and ask Osman to add you as a subscriber.
-  - Answer `OK` once you have stored the event, and do the work afterwards. Answer `UNAVAILABLE` to have it retried later, and `INVALID_ARGUMENT` or `UNIMPLEMENTED` only for an event you can never handle.
+  - Answer `OK` once you have stored the event, and do the work afterwards.
+  - Answer `INVALID_ARGUMENT` (or `FAILED_PRECONDITION`) only for an event you can never handle, such as a type you do not handle. The relay then gives up on it for you.
+  - Any other code is retried later, with a growing pause, and never dropped. That includes `UNKNOWN` (a plain Go error) and `UNIMPLEMENTED`, which gRPC also answers when your service does not serve `EventSink` yet.
   - The relay is not built yet (W4, with git2-runner #20).
   - Delivery is **at least once**: you may see an event twice, so drop duplicates by `event_id`.
 - Order is not guaranteed across pipelines. Within one pipeline, `PipelineCreated` is written before any `JobFinished`, and `PipelineFinished` after the last `JobFinished`, but delivery may still reorder them. Use `occurred_at` and the status, not arrival order.
