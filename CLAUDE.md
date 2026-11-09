@@ -1,6 +1,6 @@
 # git2-runner — notes for Claude
 
-The CI lane of [git2](https://github.com/git2-project/git2): it turns a push into a pipeline and runs each job in its own container on a build host. Owner: Osman (Pipelines). Backup reviewer: Ceyda.
+The CI lane of [git2](https://github.com/git2-project/git2): it turns a push into a pipeline and runs each job in its own container on a build host. Owner: Osman (Pipelines). PRs are reviewed by Apo (Abdullah Akcan, `itu-itis23-akcana22`).
 
 For architecture work, read `docs/design/plan.md` (the plan), `docs/decisions/` (what is decided and why) and `docs/design/assumptions.md` (what we assume about the other repos). The project-wide documents (charter, project plan, kickoff deck, team map) are in the git2 repo under `docs/project_docs/`. They disagree in places; `docs/design/plan.md` §2 says which version we follow.
 

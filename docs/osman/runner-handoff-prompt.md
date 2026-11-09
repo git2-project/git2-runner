@@ -61,7 +61,7 @@ Add `concurrent` (default 1) to the runner config. N worker loops share one gRPC
 ## 4. Rules you must not break
 
 - **PRs only.** Never commit or push to `main`. Branch names `feat/runner-…`, `fix/runner-…`, `test/runner-…`. Conventional commits, small and focused, ending with the co-author line the harness gives you.
-- Open PRs into `main` with **`ceydaakin`** as reviewer and me as assignee, and link the issue (`Closes #N`) so the board moves it. When you start an issue, move it to **In progress** on the board; when its PR is open, to **In review** (`gh project item-edit`; Status field of project #1). Closing an issue moves it to Done. Ask me before merging anything; don't push or open PRs unless I said so in this session.
+- Open PRs into `main` with **`itu-itis23-akcana22`** (Apo) as reviewer and me as assignee, and link the issue (`Closes #N`) so the board moves it. When you start an issue, move it to **In progress** on the board; when its PR is open, to **In review** (`gh project item-edit`; Status field of project #1). Closing an issue moves it to Done. Ask me before merging anything; don't push or open PRs unless I said so in this session.
 - **Build hosts are untrusted.** The runner only ever holds its own token and, during a job, that job's variables. Never write secrets to disk, a command line, or a log. Never bind-mount host paths into job containers (the daemon may be remote or Docker-in-Docker): use volumes and the API.
 - **No migrations here.** The schema lives in the git2 repo (`migrations/003_ci_pipelines.sql`); this repo keeps a byte-identical copy for tests. The runner should never need one.
 - **Never edit other repos** (`git2`, `git2-codeplane`, `git2-deploy`). Write what they must change as an action item in a version note, or ask me to open an issue.
@@ -77,8 +77,8 @@ Use names, not `@` mentions, unless I ask.
 | Osman (me) | Pipelines / CI, product owner | git2-runner |
 | Bilge | Dash (web UI, dash-api) | git2 |
 | Beste (Zarif Beste Süner) | Management console, Scrum Master | git2 |
-| Apo (Abdullah Akcan) | Git core, codeplane | git2-codeplane |
-| Ceyda (Ceyda Akın, `ceydaakin`) | Deploy and backup; my backup reviewer | git2-deploy |
+| Apo (Abdullah Akcan, `itu-itis23-akcana22`) | Git core, codeplane; reviews my PRs | git2-codeplane |
+| Ceyda (Ceyda Akın, `ceydaakin`) | Deploy and backup | git2-deploy |
 
 Issues go on org project #1. The Runner view only shows issues **in git2-runner**, so create CI issues there. Title style: `feat(runner): … (WBS-10.2)`, labels `enhancement` or `documentation`, assignee `osman-yahya`.
 

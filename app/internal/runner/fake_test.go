@@ -68,6 +68,9 @@ type fakeCI struct {
 	// appendFault makes AppendLog call n (from 1) fail with err. With
 	// keep, ci-svc stores the bytes first, as when only the reply is lost.
 	appendFault func(n int) (keep bool, err error)
+	// appendStall makes AppendLog call n (from 1) store nothing and answer
+	// the current size, as a ci-svc that makes no progress.
+	appendStall func(n int) bool
 	// maxLog is the size at which the log is truncated; 0 means never.
 	maxLog int
 
@@ -153,6 +156,10 @@ func (f *fakeCI) AppendLog(ctx context.Context, in *civ1.AppendLogRequest, _ ...
 	if in.GetOffset() < 0 || len(in.GetData()) == 0 || len(in.GetData()) > 256<<10 {
 		f.t.Errorf("ci-svc would refuse AppendLog with %d bytes at offset %d", len(in.GetData()), in.GetOffset())
 		return nil, status.Error(codes.InvalidArgument, "bad offset or data")
+	}
+	if f.appendStall != nil && f.appendStall(len(f.appends)) {
+		call.ok, call.size = true, int64(len(f.log))
+		return &civ1.AppendLogResponse{Size: call.size}, nil
 	}
 	var keep bool
 	var err error

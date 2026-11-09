@@ -198,6 +198,11 @@ func (a *Agent) heartbeat(ctx context.Context, jobID string, cancel context.Canc
 			cancel(errLost)
 			return
 		default:
+			if ctx.Err() != nil {
+				// The job ended while the call was in flight, which
+				// cancelled it. Nothing failed.
+				return
+			}
 			// ci-svc unreachable: keep running; the lease covers a few
 			// missed heartbeats.
 			a.Log.Warn("heartbeat failed", slog.String("job_id", jobID), slog.String("err", err.Error()))

@@ -1,12 +1,15 @@
 package runner
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"reflect"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -186,6 +189,58 @@ func TestRunJobLost(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestRunJobNoHeartbeatWarningAtJobEnd checks that a heartbeat still in
+// flight when the job ends, and cancelled by its end, is not logged as a
+// failure (#35).
+func TestRunJobNoHeartbeatWarningAtJobEnd(t *testing.T) {
+	t.Parallel()
+	f := newFakeCI(t)
+	jobCtx := make(chan context.Context, 1)
+	inFlight := make(chan struct{})
+	f.heartbeat = func(n int) (*civ1.UpdateJobResponse, error) {
+		if n > 1 {
+			return &civ1.UpdateJobResponse{}, nil
+		}
+		ctx := <-jobCtx
+		close(inFlight)
+		<-ctx.Done() // the job ends while this call is in flight
+		return nil, status.FromContextError(ctx.Err()).Err()
+	}
+	var logs lockedBuffer
+	a := newTestAgent(f, execFunc(func(ctx context.Context, _ Spec, _ io.Writer) Result {
+		jobCtx <- ctx
+		<-inFlight
+		return Result{}
+	}))
+	a.Log = slog.New(slog.NewTextHandler(&logs, nil))
+	within(t, "RunJob", func() { a.RunJob(context.Background(), testJob(time.Hour)) })
+
+	if got := logs.String(); strings.Contains(got, "heartbeat failed") {
+		t.Errorf("logged a heartbeat failure for a job that simply ended:\n%s", got)
+	}
+	if final := onlyFinal(t, f); final.req.GetStatus() != statusSuccess {
+		t.Errorf("reported %v, want SUCCESS", final.req.GetStatus())
+	}
+}
+
+// lockedBuffer is a bytes.Buffer that several goroutines may write to.
+type lockedBuffer struct {
+	mu  sync.Mutex
+	buf bytes.Buffer
+}
+
+func (b *lockedBuffer) Write(p []byte) (int, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.buf.Write(p)
+}
+
+func (b *lockedBuffer) String() string {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.buf.String()
 }
 
 func TestRunJobKeepsRunningWhenHeartbeatsFail(t *testing.T) {
