@@ -32,6 +32,10 @@ const (
 	EnvDev              = "GIT2_CISVC_DEV"
 	EnvDevConfigDir     = "GIT2_CISVC_DEV_CONFIG_DIR"
 	EnvLogLevel         = "GIT2_CISVC_LOG_LEVEL"
+
+	// EnvGitSvcAddr has the same name as in git2's gateway, so one
+	// Compose value serves both.
+	EnvGitSvcAddr = "GIT_SVC_GRPC_ADDR"
 )
 
 // Defaults used when a variable is unset.
@@ -64,7 +68,11 @@ type Config struct {
 	// DevConfigDir, if set, is where ci-svc reads .git2-ci.yml files
 	// instead of git-svc: <dir>/<repository_id>/.git2-ci.yml.
 	DevConfigDir string
-	LogLevel     slog.Level
+	// GitSvcAddr is git-svc's gRPC address, host:port, where ci-svc reads
+	// .git2-ci.yml at a pushed commit. Empty: pushes cannot start
+	// pipelines (except with DevConfigDir).
+	GitSvcAddr string
+	LogLevel   slog.Level
 }
 
 // Load reads and validates the configuration from the process environment.
@@ -148,6 +156,15 @@ func parse(lookup func(string) (string, bool)) (Config, error) {
 			errs = append(errs, fmt.Errorf("%s: must be an absolute path, got %q", EnvDevConfigDir, v))
 		default:
 			cfg.DevConfigDir = filepath.Clean(v)
+		}
+	}
+
+	if cfg.GitSvcAddr = get(EnvGitSvcAddr); cfg.GitSvcAddr != "" {
+		if _, _, err := net.SplitHostPort(cfg.GitSvcAddr); err != nil {
+			errs = append(errs, fmt.Errorf("%s: must be host:port", EnvGitSvcAddr))
+		}
+		if cfg.DevConfigDir != "" {
+			errs = append(errs, fmt.Errorf("%s and %s: set only one; both say where .git2-ci.yml comes from", EnvGitSvcAddr, EnvDevConfigDir))
 		}
 	}
 

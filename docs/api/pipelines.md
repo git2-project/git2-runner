@@ -61,6 +61,15 @@ Starts a pipeline for one commit. **Idempotent on `idempotency_key`**: the same 
 
 `TriggerPipeline` is for manual runs (dash-api's "run pipeline") and for development. Treat `NOT_FOUND` as "this repository has no CI" (do not retry). Retry `UNAVAILABLE`.
 
+**Where the file comes from.** ci-svc reads `.git2-ci.yml` at `commit_sha` from git-svc with `CommitService.GetBlob` (`GIT_SVC_GRPC_ADDR`, [config.md](config.md)).
+
+| git-svc says | The trigger |
+|---|---|
+| the file | parses it; an invalid file gives a `FAILED` pipeline with the errors in `error_message` |
+| `NOT_FOUND` (no file, no commit, no repository) | answers `NOT_FOUND`: no CI for this commit |
+| a file that cannot be a pipeline | creates a `FAILED` pipeline; `error_message` is `.git2-ci.yml is invalid: ` and then one of: `it is not a regular file` (a directory or submodule), `it is a symbolic link`, `it is stored in Git LFS`, `it is a binary file`, `the file is larger than 256 KiB` |
+| anything else, or no answer in 10 s | answers `UNAVAILABLE`; retry |
+
 ```sh
 grpcurl -plaintext -d '{
   "repository_id": "<repository-id>", "ref": "refs/heads/main",
