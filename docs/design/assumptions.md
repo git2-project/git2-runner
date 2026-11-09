@@ -43,7 +43,7 @@ Weeks: W1 starts 26 Oct 2026, W2 2 Nov, W3 9 Nov, W4 16 Nov, W5 23 Nov, W6 30 No
 **We assume:** codeplane's gRPC API can return one file's content at a given commit. Its `repository.proto` plans this as `CommitService` for W2–W3.
 **If wrong:** pushes cannot start pipelines, and the M3 demo (11 Dec) is at risk.
 **Confirmed on 2026-11-09:** `CommitService.GetBlob` (git2-codeplane `v0.2.0`, codeplane #8) returns one file at a ref, and `ref` may be a full commit SHA. `NOT_FOUND` with `path not found` means the commit has no `.git2-ci.yml`. ci-svc treats a reply marked `binary`, `lfs` or `truncated`, or a symlink, as an invalid config.
-**Until #18 (2026-10-29):** ci-svc reads files through a `Source` interface. In production it answers `UNAVAILABLE` until this RPC exists; in development `GIT2_CISVC_DEV_CONFIG_DIR` serves files from disk.
+**Built in #18 (2026-11-09):** ci-svc reads the file with `GetBlob` from `GIT_SVC_GRPC_ADDR`. In development `GIT2_CISVC_DEV_CONFIG_DIR` still serves files from disk instead.
 
 ### A-04 · How a job gets the source code
 

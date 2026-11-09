@@ -101,14 +101,24 @@ func (s *Service) Trigger(ctx context.Context, in TriggerInput) (Pipeline, bool,
 	}
 
 	content, err := s.source.ReadCIFile(ctx, args.repositoryID, in.CommitSHA)
+	var invalid *source.InvalidFileError
 	switch {
 	case errors.Is(err, source.ErrNoCIFile):
 		return Pipeline{}, false, apierr.New(apierr.NotFound, "the commit has no "+ciyaml.FileName)
+	case errors.As(err, &invalid):
+		// The file exists but is no pipeline definition: the pipeline is
+		// created as failed, like a file that does not parse.
 	case err != nil:
 		s.log.WarnContext(ctx, "read CI file", "err", err.Error())
 		return Pipeline{}, false, apierr.New(apierr.Unavailable, "could not read "+ciyaml.FileName+" from git-svc; retry later")
 	}
-	cfg, parseErr := ciyaml.Parse(content)
+	var cfg *ciyaml.Config
+	var parseErr error
+	if invalid != nil {
+		parseErr = ciyaml.Errors{{Message: invalid.Reason}}
+	} else {
+		cfg, parseErr = ciyaml.Parse(content)
+	}
 
 	id := uuid.Must(uuid.NewV7())
 	var created, queued bool
