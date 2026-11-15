@@ -1,0 +1,7 @@
+# Only the Go sources go into the image build.
+bin/
+*.test
+*.out
+coverage.*
+.env
+.env.*

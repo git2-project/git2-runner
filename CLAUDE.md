@@ -8,7 +8,8 @@ For architecture work, read `docs/design/plan.md` (the plan), `docs/decisions/` 
 
 - **PRs only.** Never commit to `main`. Work on a branch (`feat/…`, `fix/…`, `docs/…`, `chore/…`). Don't push, open PRs or issues, or merge unless asked. Every PR gets one human review.
 - **No migrations at runtime, and their source of truth is git2** (ADR 0009).
-  - The schema lives in the git2 repo: `migrations/NNN_ci_<what>.sql`, first line a `-- ` comment, idempotent statements, no Down part. Our schema is `ci_svc`; today's file is `003_ci_pipelines.sql`.
+  - The schema lives in the git2 repo: `migrations/NNN_ci_<what>.sql`, first line a `-- ` comment, idempotent statements, no Down part. Our schema is `ci_svc`.
+  - Our files so far: `003_ci_pipelines.sql` and `006_ci_inbox_and_attempts.sql` (004 and 005 are auth-svc's). Take the next free number in git2's `migrations/`.
   - This repo keeps a byte-identical copy in `migrations/` at the repo root. Only tests and the devcontainer's test database read it. Change both files together, in a git2 PR and a PR here.
   - ci-svc never changes the schema; it checks its tables at startup. Never edit an applied migration or change the shared DB by hand.
 - **A doc with every change.** If anyone outside this repo can notice a change (proto, event, config, error, limit, behaviour), the same PR updates `docs/api/`, adds a version note and adds a line to `docs/version_notes/overview.md`. The rules are in `docs/CLAUDE.md`.
@@ -44,7 +45,10 @@ app/                    Go module root, all code
                         notify, ratelimit, outbox, source, server, apierr, page, token
   internal/runner       the agent: loop, heartbeats, log shipping, secret masking
   internal/runner/docker  the Docker executor
-migrations/             copy of our git2 migration, for tests (ADR 0009)
+  Dockerfile            images for ci-svc and git2-runner (amd64, arm64; distroless, non-root)
+migrations/             copy of our git2 migrations, for tests (ADR 0009)
+deploy/systemd/         example unit for a runner on a build host
+.github/workflows/      CI: lint, proto-check, race tests with Postgres, Docker tests, image builds
 docs/api/               reference of our API for the other lanes (canonical)
 docs/version_notes/     one note per change other lanes must know about; overview.md is the index
 docs/design/            plan, assumptions, proposals

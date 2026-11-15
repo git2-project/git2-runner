@@ -1,0 +1,34 @@
+# Example systemd unit for a git2-runner build host (git2-runner #17).
+# docs/api/runners.md → "As a systemd service" has the install steps.
+#
+# The git2-runner user is in the docker group so it can reach the Docker
+# daemon. That group is equivalent to root on this host, which is why
+# runners belong on their own VM, never on the git2 instance.
+
+[Unit]
+Description=git2 CI runner
+Documentation=https://github.com/git2-project/git2-runner/blob/main/docs/api/runners.md
+Wants=network-online.target
+After=network-online.target docker.service
+Requires=docker.service
+
+[Service]
+Type=simple
+User=git2-runner
+Group=git2-runner
+SupplementaryGroups=docker
+Environment=GIT2_RUNNER_CONFIG=/etc/git2-runner/config.json
+ExecStart=/usr/local/bin/git2-runner run
+Restart=on-failure
+RestartSec=5s
+# SIGTERM lets the current job finish before the runner exits. Allow as
+# long as the longest job timeout in your .git2-ci.yml files.
+KillSignal=SIGTERM
+TimeoutStopSec=1h
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,108 @@
+# Checks for every pull request and every push to main (git2-runner #17).
+# The same commands as the Makefile in app/ (see CLAUDE.md). Images are
+# built for amd64 and arm64 but not published: publishing to GHCR comes
+# with WBS-13.4 (#40), once the registry is agreed with Deploy.
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    working-directory: app
+
+env:
+  GO_VERSION: "1.26.10"
+
+jobs:
+  lint:
+    name: lint and proto
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache-dependency-path: |
+            app/go.sum
+            app/tools.sum
+      - name: golangci-lint, buf lint, buf format
+        run: make lint
+      - name: generated code is up to date
+        run: make proto-check
+      - name: the runner does not import ci-svc code
+        run: |
+          if go list -deps ./cmd/git2-runner | grep -E 'pgx|go-redis|cisvc'; then
+            echo "git2-runner must not import ci-svc code, pgx or go-redis (CLAUDE.md)"
+            exit 1
+          fi
+
+  test:
+    name: tests (race, Postgres)
+    runs-on: ubuntu-24.04
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: git2
+          POSTGRES_PASSWORD: git2
+          POSTGRES_DB: git2_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U git2"
+          --health-interval 2s
+          --health-timeout 5s
+          --health-retries 15
+    env:
+      # A throwaway database for this job only.
+      TEST_POSTGRES_DSN: postgres://git2:git2@localhost:5432/git2_test?sslmode=disable
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache-dependency-path: app/go.sum
+      - name: go test -race
+        run: go test -count=1 -race ./...
+
+  docker-tests:
+    name: tests with Docker
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache-dependency-path: app/go.sum
+      - name: the Docker executor against the runner's Docker daemon
+        run: go test -count=1 -tags integration ./internal/runner/...
+
+  images:
+    name: images (amd64, arm64)
+    runs-on: ubuntu-24.04
+    strategy:
+      matrix:
+        target: [ci-svc, git2-runner]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - name: build ${{ matrix.target }}
+        uses: docker/build-push-action@v6
+        with:
+          context: app
+          target: ${{ matrix.target }}
+          platforms: linux/amd64,linux/arm64
+          push: false
+          build-args: VERSION=0.1.0-${{ github.sha }}
+          cache-from: type=gha,scope=${{ matrix.target }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.target }}

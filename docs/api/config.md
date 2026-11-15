@@ -53,7 +53,39 @@ Only ci-svc connects, never runners. Keys and channels all start with `ci:`: the
 
 - ci-svc: a Deployment with 2 or more replicas, a Service for `:9090` (cluster-internal) and one for `:9091` (reachable by runners). No volume.
 - Runner: a static binary with a systemd unit on a VM, or a container with access to a Docker daemon (`DOCKER_HOST`). The runner never bind-mounts host paths into jobs, so a remote daemon or Docker-in-Docker works.
-- Images for amd64 and arm64 are not built yet (this repo has no Dockerfile for the programs yet).
+- Images: see [Images](#images) below.
+
+## Images
+
+[`app/Dockerfile`](../../app/Dockerfile) builds both programs for `linux/amd64` and `linux/arm64`. CI builds them on every pull request; they are **not published yet**. Publishing to GHCR comes with WBS-13.4 (#40), and the names below are the proposal for that.
+
+| Target | Proposed name | Runs as | Ports | Volumes |
+|---|---|---|---|---|
+| `ci-svc` | `ghcr.io/git2-project/ci-svc` | user 65532 (distroless `nonroot`) | `9090` internal, `9091` runner | none: ci-svc is stateless |
+| `git2-runner` | `ghcr.io/git2-project/git2-runner` | user 65532 | none (it dials out) | `/etc/git2-runner` for `config.json`, which holds the runner token |
+
+```sh
+cd app
+docker buildx build --target ci-svc --platform linux/amd64,linux/arm64 -t ci-svc .
+docker buildx build --target git2-runner --build-arg VERSION=0.1.0 -t git2-runner --load .
+```
+
+- Both are static Go binaries on `gcr.io/distroless/static-debian12:nonroot`: no shell, about 6–10 MB. The CA certificates for a TLS connection to PostgreSQL are included.
+- ci-svc takes everything from the environment variables above. In Compose:
+
+```yaml
+ci-svc:
+  image: <registry>/ci-svc:<tag>
+  environment:
+    POSTGRES_DSN: ${POSTGRES_DSN}
+    REDIS_ADDR: redis:6379
+    GIT_SVC_GRPC_ADDR: git-svc:9090
+    GIT2_CI_SECRETS_KEY: ${GIT2_CI_SECRETS_KEY}
+  # 9090 stays on the instance network. Publish 9091 only to the build hosts.
+```
+
+- Health: the images have no shell, so there is no `HEALTHCHECK`. In Kubernetes use the native gRPC probe on `9090`. In Compose, leave it out, or add `grpc_health_probe` in a later image.
+- The runner image is described in [runners.md → In a container](runners.md#in-a-container).
 
 ## Backup and restore
 
