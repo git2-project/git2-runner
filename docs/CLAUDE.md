@@ -64,6 +64,8 @@ A table of error codes and when each happens. Before/after tables for changes.>
 
 Only list the lanes that have something to do.
 
+**Sunday's note ends with the week's status** (WBS-18.2): a `## ℹ️ FYI — Week N status` section with Done, Next, and Risks and blockers, 5–8 bullets in all. Write the note that day even if nothing else changed.
+
 ## Overview tags
 
 | Tag | Meaning |
