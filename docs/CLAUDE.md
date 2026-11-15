@@ -19,6 +19,7 @@ Everything in `docs/` is written for **people outside this repo**: the other lan
 | `design/` | Plan, assumptions, proposals | For us. Others may read it but never build from it |
 | `decisions/` | ADRs | For us |
 | `osman/` | Osman's working notes and handoff prompts for coding agents (for example `runner-handoff-prompt.md`) | For us. Not a spec |
+| `reports/` | The CI lane's sections of the course reports, sent to each report's editor (for example `requirement-analysis-ci.md`) | No. The submitted report is |
 
 ## When a change needs docs
 
