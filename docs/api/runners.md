@@ -60,6 +60,35 @@ git2-runner run
 - The config file's `docker` section sets limits per job container: `memory_mb` (default 2048), `cpus` (2), `pids_limit` (1024).
 - The build host needs nothing but outbound access to the runner port. It never gets the database, Redis or bucket credentials. Run runners on a different VM from the git2 instance in production: they run other people's code.
 
+### As a systemd service
+
+[`deploy/systemd/git2-runner.service`](../../deploy/systemd/git2-runner.service) is an example unit. On the build host:
+
+```sh
+sudo useradd --system --create-home --home-dir /var/lib/git2-runner git2-runner
+sudo install -d -o git2-runner -g git2-runner -m 0700 /etc/git2-runner
+sudo install -m 0755 git2-runner /usr/local/bin/git2-runner
+sudo -u git2-runner GIT2_RUNNER_REGISTRATION_TOKEN=<registration-token>   git2-runner register -url https://<instance>:9091 -labels linux,docker
+sudo cp git2-runner.service /etc/systemd/system/
+sudo systemctl enable --now git2-runner
+```
+
+The unit runs as `git2-runner` with the `docker` group, which is root-equivalent on that host. That is one more reason to keep runners off the git2 instance.
+
+### In a container
+
+The `git2-runner` image ([config.md → Images](config.md#images)) runs as user 65532 and keeps its config in the `/etc/git2-runner` volume. It needs a Docker daemon for the jobs:
+
+```sh
+docker volume create git2-runner
+# Register once
+docker run --rm -v git2-runner:/etc/git2-runner <registry>/git2-runner:<tag>   register -url https://<instance>:9091 -token <registration-token> -labels linux,docker
+# Run, with the host's Docker socket and its group
+docker run -d --name git2-runner --restart unless-stopped   -v git2-runner:/etc/git2-runner -v /var/run/docker.sock:/var/run/docker.sock   --group-add "$(stat -c %g /var/run/docker.sock)" <registry>/git2-runner:<tag>
+```
+
+Instead of the socket you can set `DOCKER_HOST` to a Docker-in-Docker daemon. The runner never bind-mounts host paths into jobs, so both work.
+
 ## RunnerService (the runner protocol)
 
 On ci-svc's **runner port**. Every call except `RegisterRunner` carries `authorization: Bearer <runner token>`. Proto: [`runner.proto`](../../app/proto/ci/v1/runner.proto).
