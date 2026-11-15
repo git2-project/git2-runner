@@ -37,9 +37,11 @@ message PipelineCreated {
   google.protobuf.Timestamp occurred_at = 6;
 }
 
-// PipelineFinished is published once, when a pipeline reaches a final
-// status (SUCCESS, FAILED or CANCELED). Dash uses it for the check mark on
-// commits and merge requests.
+// PipelineFinished is published when a pipeline reaches a final status
+// (SUCCESS, FAILED or CANCELED). Dash uses it for the check mark on commits
+// and merge requests. After RetryJob the pipeline runs again and reaches a
+// final status again, so the same pipeline_id can arrive more than once:
+// keep the one with the latest occurred_at.
 message PipelineFinished {
   // ID of the pipeline.
   string pipeline_id = 1;
@@ -60,7 +62,8 @@ message PipelineFinished {
   google.protobuf.Timestamp occurred_at = 6;
 }
 
-// JobFinished is published once, when a job reaches a final status.
+// JobFinished is published once per attempt, when it reaches a final status.
+// A retried job is a new attempt with its own job_id.
 message JobFinished {
   // ID of the job.
   string job_id = 1;

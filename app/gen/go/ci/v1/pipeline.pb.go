@@ -57,8 +57,8 @@ const (
 
 // PipelineStatus is the state of a pipeline.
 //
-// PENDING and RUNNING are not final; the others are, and a pipeline in a
-// final state never changes again.
+// PENDING and RUNNING are not final; the others are. A pipeline in a final
+// state changes again only when RetryJob runs one of its jobs again.
 type PipelineStatus int32
 
 const (
@@ -539,7 +539,8 @@ type Job struct {
 	Id string `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
 	// ID of the pipeline the job belongs to.
 	PipelineId string `protobuf:"bytes,2,opt,name=pipeline_id,json=pipelineId,proto3" json:"pipeline_id,omitempty"`
-	// Name of the job, unique within its pipeline, as in .git2-ci.yml.
+	// Name of the job, as in .git2-ci.yml. Unique within its pipeline for
+	// each attempt.
 	Name string `protobuf:"bytes,3,opt,name=name,proto3" json:"name,omitempty"`
 	// Name of the job's stage.
 	Stage string `protobuf:"bytes,4,opt,name=stage,proto3" json:"stage,omitempty"`
@@ -561,7 +562,13 @@ type Job struct {
 	// When a runner took it. Unset until then.
 	StartedAt *timestamppb.Timestamp `protobuf:"bytes,12,opt,name=started_at,json=startedAt,proto3" json:"started_at,omitempty"`
 	// When it reached a final status. Unset until then.
-	FinishedAt    *timestamppb.Timestamp `protobuf:"bytes,13,opt,name=finished_at,json=finishedAt,proto3" json:"finished_at,omitempty"`
+	FinishedAt *timestamppb.Timestamp `protobuf:"bytes,13,opt,name=finished_at,json=finishedAt,proto3" json:"finished_at,omitempty"`
+	// Which run of this job it is: 1 for the first, one more for each
+	// RetryJob.
+	Attempt int32 `protobuf:"varint,14,opt,name=attempt,proto3" json:"attempt,omitempty"`
+	// ID of the attempt this one retries. Empty for the first attempt. Follow
+	// it with GetJob to show earlier attempts and their logs.
+	RetryOfId     string `protobuf:"bytes,15,opt,name=retry_of_id,json=retryOfId,proto3" json:"retry_of_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -685,6 +692,20 @@ func (x *Job) GetFinishedAt() *timestamppb.Timestamp {
 		return x.FinishedAt
 	}
 	return nil
+}
+
+func (x *Job) GetAttempt() int32 {
+	if x != nil {
+		return x.Attempt
+	}
+	return 0
+}
+
+func (x *Job) GetRetryOfId() string {
+	if x != nil {
+		return x.RetryOfId
+	}
+	return ""
 }
 
 // TriggerPipelineRequest is the input of TriggerPipeline.
@@ -1250,6 +1271,138 @@ func (x *GetJobResponse) GetJob() *Job {
 	return nil
 }
 
+// RetryJobRequest is the input of RetryJob.
+type RetryJobRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// ID of the job to run again: the newest attempt of its name. Required.
+	JobId string `protobuf:"bytes,1,opt,name=job_id,json=jobId,proto3" json:"job_id,omitempty"`
+	// Makes the call idempotent: one key, one new attempt. Generate a UUID
+	// when the user clicks "retry", and reuse it when you retry the call.
+	// 1 to 512 bytes of UTF-8 text without control characters. Required.
+	IdempotencyKey string `protobuf:"bytes,2,opt,name=idempotency_key,json=idempotencyKey,proto3" json:"idempotency_key,omitempty"`
+	// ID of the user who pressed "retry". Optional; empty or a UUID.
+	TriggeredById string `protobuf:"bytes,3,opt,name=triggered_by_id,json=triggeredById,proto3" json:"triggered_by_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RetryJobRequest) Reset() {
+	*x = RetryJobRequest{}
+	mi := &file_ci_v1_pipeline_proto_msgTypes[13]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RetryJobRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RetryJobRequest) ProtoMessage() {}
+
+func (x *RetryJobRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_ci_v1_pipeline_proto_msgTypes[13]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RetryJobRequest.ProtoReflect.Descriptor instead.
+func (*RetryJobRequest) Descriptor() ([]byte, []int) {
+	return file_ci_v1_pipeline_proto_rawDescGZIP(), []int{13}
+}
+
+func (x *RetryJobRequest) GetJobId() string {
+	if x != nil {
+		return x.JobId
+	}
+	return ""
+}
+
+func (x *RetryJobRequest) GetIdempotencyKey() string {
+	if x != nil {
+		return x.IdempotencyKey
+	}
+	return ""
+}
+
+func (x *RetryJobRequest) GetTriggeredById() string {
+	if x != nil {
+		return x.TriggeredById
+	}
+	return ""
+}
+
+// RetryJobResponse is the output of RetryJob.
+type RetryJobResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The new attempt.
+	Job *Job `protobuf:"bytes,1,opt,name=job,proto3" json:"job,omitempty"`
+	// The job's pipeline after the retry, with the newest attempt of each
+	// job.
+	Pipeline *Pipeline `protobuf:"bytes,2,opt,name=pipeline,proto3" json:"pipeline,omitempty"`
+	// True if this call created the attempt, false if an earlier call with
+	// the same idempotency_key did.
+	Created       bool `protobuf:"varint,3,opt,name=created,proto3" json:"created,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RetryJobResponse) Reset() {
+	*x = RetryJobResponse{}
+	mi := &file_ci_v1_pipeline_proto_msgTypes[14]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RetryJobResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RetryJobResponse) ProtoMessage() {}
+
+func (x *RetryJobResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_ci_v1_pipeline_proto_msgTypes[14]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RetryJobResponse.ProtoReflect.Descriptor instead.
+func (*RetryJobResponse) Descriptor() ([]byte, []int) {
+	return file_ci_v1_pipeline_proto_rawDescGZIP(), []int{14}
+}
+
+func (x *RetryJobResponse) GetJob() *Job {
+	if x != nil {
+		return x.Job
+	}
+	return nil
+}
+
+func (x *RetryJobResponse) GetPipeline() *Pipeline {
+	if x != nil {
+		return x.Pipeline
+	}
+	return nil
+}
+
+func (x *RetryJobResponse) GetCreated() bool {
+	if x != nil {
+		return x.Created
+	}
+	return false
+}
+
 // StreamJobLogRequest is the input of StreamJobLog.
 type StreamJobLogRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -1267,7 +1420,7 @@ type StreamJobLogRequest struct {
 
 func (x *StreamJobLogRequest) Reset() {
 	*x = StreamJobLogRequest{}
-	mi := &file_ci_v1_pipeline_proto_msgTypes[13]
+	mi := &file_ci_v1_pipeline_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1279,7 +1432,7 @@ func (x *StreamJobLogRequest) String() string {
 func (*StreamJobLogRequest) ProtoMessage() {}
 
 func (x *StreamJobLogRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_ci_v1_pipeline_proto_msgTypes[13]
+	mi := &file_ci_v1_pipeline_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1292,7 +1445,7 @@ func (x *StreamJobLogRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StreamJobLogRequest.ProtoReflect.Descriptor instead.
 func (*StreamJobLogRequest) Descriptor() ([]byte, []int) {
-	return file_ci_v1_pipeline_proto_rawDescGZIP(), []int{13}
+	return file_ci_v1_pipeline_proto_rawDescGZIP(), []int{15}
 }
 
 func (x *StreamJobLogRequest) GetJobId() string {
@@ -1329,7 +1482,7 @@ type StreamJobLogResponse struct {
 
 func (x *StreamJobLogResponse) Reset() {
 	*x = StreamJobLogResponse{}
-	mi := &file_ci_v1_pipeline_proto_msgTypes[14]
+	mi := &file_ci_v1_pipeline_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1341,7 +1494,7 @@ func (x *StreamJobLogResponse) String() string {
 func (*StreamJobLogResponse) ProtoMessage() {}
 
 func (x *StreamJobLogResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_ci_v1_pipeline_proto_msgTypes[14]
+	mi := &file_ci_v1_pipeline_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1354,7 +1507,7 @@ func (x *StreamJobLogResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StreamJobLogResponse.ProtoReflect.Descriptor instead.
 func (*StreamJobLogResponse) Descriptor() ([]byte, []int) {
-	return file_ci_v1_pipeline_proto_rawDescGZIP(), []int{14}
+	return file_ci_v1_pipeline_proto_rawDescGZIP(), []int{16}
 }
 
 func (x *StreamJobLogResponse) GetOffset() int64 {
@@ -1382,7 +1535,7 @@ type ValidateConfigRequest struct {
 
 func (x *ValidateConfigRequest) Reset() {
 	*x = ValidateConfigRequest{}
-	mi := &file_ci_v1_pipeline_proto_msgTypes[15]
+	mi := &file_ci_v1_pipeline_proto_msgTypes[17]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1394,7 +1547,7 @@ func (x *ValidateConfigRequest) String() string {
 func (*ValidateConfigRequest) ProtoMessage() {}
 
 func (x *ValidateConfigRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_ci_v1_pipeline_proto_msgTypes[15]
+	mi := &file_ci_v1_pipeline_proto_msgTypes[17]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1407,7 +1560,7 @@ func (x *ValidateConfigRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ValidateConfigRequest.ProtoReflect.Descriptor instead.
 func (*ValidateConfigRequest) Descriptor() ([]byte, []int) {
-	return file_ci_v1_pipeline_proto_rawDescGZIP(), []int{15}
+	return file_ci_v1_pipeline_proto_rawDescGZIP(), []int{17}
 }
 
 func (x *ValidateConfigRequest) GetContent() string {
@@ -1430,7 +1583,7 @@ type ValidateConfigResponse struct {
 
 func (x *ValidateConfigResponse) Reset() {
 	*x = ValidateConfigResponse{}
-	mi := &file_ci_v1_pipeline_proto_msgTypes[16]
+	mi := &file_ci_v1_pipeline_proto_msgTypes[18]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1442,7 +1595,7 @@ func (x *ValidateConfigResponse) String() string {
 func (*ValidateConfigResponse) ProtoMessage() {}
 
 func (x *ValidateConfigResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_ci_v1_pipeline_proto_msgTypes[16]
+	mi := &file_ci_v1_pipeline_proto_msgTypes[18]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1455,7 +1608,7 @@ func (x *ValidateConfigResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ValidateConfigResponse.ProtoReflect.Descriptor instead.
 func (*ValidateConfigResponse) Descriptor() ([]byte, []int) {
-	return file_ci_v1_pipeline_proto_rawDescGZIP(), []int{16}
+	return file_ci_v1_pipeline_proto_rawDescGZIP(), []int{18}
 }
 
 func (x *ValidateConfigResponse) GetValid() bool {
@@ -1491,7 +1644,7 @@ type ConfigError struct {
 
 func (x *ConfigError) Reset() {
 	*x = ConfigError{}
-	mi := &file_ci_v1_pipeline_proto_msgTypes[17]
+	mi := &file_ci_v1_pipeline_proto_msgTypes[19]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1503,7 +1656,7 @@ func (x *ConfigError) String() string {
 func (*ConfigError) ProtoMessage() {}
 
 func (x *ConfigError) ProtoReflect() protoreflect.Message {
-	mi := &file_ci_v1_pipeline_proto_msgTypes[17]
+	mi := &file_ci_v1_pipeline_proto_msgTypes[19]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1516,7 +1669,7 @@ func (x *ConfigError) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ConfigError.ProtoReflect.Descriptor instead.
 func (*ConfigError) Descriptor() ([]byte, []int) {
-	return file_ci_v1_pipeline_proto_rawDescGZIP(), []int{17}
+	return file_ci_v1_pipeline_proto_rawDescGZIP(), []int{19}
 }
 
 func (x *ConfigError) GetPath() string {
@@ -1575,7 +1728,7 @@ const file_ci_v1_pipeline_proto_rawDesc = "" +
 	"\x05Stage\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x1e\n" +
 	"\x04jobs\x18\x02 \x03(\v2\n" +
-	".ci.v1.JobR\x04jobs\"\xfb\x03\n" +
+	".ci.v1.JobR\x04jobs\"\xb5\x04\n" +
 	"\x03Job\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1f\n" +
 	"\vpipeline_id\x18\x02 \x01(\tR\n" +
@@ -1594,7 +1747,9 @@ const file_ci_v1_pipeline_proto_rawDesc = "" +
 	"\n" +
 	"started_at\x18\f \x01(\v2\x1a.google.protobuf.TimestampR\tstartedAt\x12;\n" +
 	"\vfinished_at\x18\r \x01(\v2\x1a.google.protobuf.TimestampR\n" +
-	"finishedAtB\f\n" +
+	"finishedAt\x12\x18\n" +
+	"\aattempt\x18\x0e \x01(\x05R\aattempt\x12\x1e\n" +
+	"\vretry_of_id\x18\x0f \x01(\tR\tretryOfIdB\f\n" +
 	"\n" +
 	"_exit_code\"\xf1\x01\n" +
 	"\x16TriggerPipelineRequest\x12#\n" +
@@ -1629,7 +1784,16 @@ const file_ci_v1_pipeline_proto_rawDesc = "" +
 	"\x02id\x18\x01 \x01(\tR\x02id\".\n" +
 	"\x0eGetJobResponse\x12\x1c\n" +
 	"\x03job\x18\x01 \x01(\v2\n" +
-	".ci.v1.JobR\x03job\"\\\n" +
+	".ci.v1.JobR\x03job\"y\n" +
+	"\x0fRetryJobRequest\x12\x15\n" +
+	"\x06job_id\x18\x01 \x01(\tR\x05jobId\x12'\n" +
+	"\x0fidempotency_key\x18\x02 \x01(\tR\x0eidempotencyKey\x12&\n" +
+	"\x0ftriggered_by_id\x18\x03 \x01(\tR\rtriggeredById\"w\n" +
+	"\x10RetryJobResponse\x12\x1c\n" +
+	"\x03job\x18\x01 \x01(\v2\n" +
+	".ci.v1.JobR\x03job\x12+\n" +
+	"\bpipeline\x18\x02 \x01(\v2\x0f.ci.v1.PipelineR\bpipeline\x12\x18\n" +
+	"\acreated\x18\x03 \x01(\bR\acreated\"\\\n" +
 	"\x13StreamJobLogRequest\x12\x15\n" +
 	"\x06job_id\x18\x01 \x01(\tR\x05jobId\x12\x16\n" +
 	"\x06offset\x18\x02 \x01(\x03R\x06offset\x12\x16\n" +
@@ -1673,13 +1837,14 @@ const file_ci_v1_pipeline_proto_rawDesc = "" +
 	"\x1aJOB_FAILURE_REASON_TIMEOUT\x10\x02\x12\"\n" +
 	"\x1eJOB_FAILURE_REASON_RUNNER_LOST\x10\x03\x12)\n" +
 	"%JOB_FAILURE_REASON_IMAGE_PULL_FAILURE\x10\x04\x12,\n" +
-	"(JOB_FAILURE_REASON_RUNNER_SYSTEM_FAILURE\x10\x052\x95\x04\n" +
+	"(JOB_FAILURE_REASON_RUNNER_SYSTEM_FAILURE\x10\x052\xd2\x04\n" +
 	"\x0fPipelineService\x12P\n" +
 	"\x0fTriggerPipeline\x12\x1d.ci.v1.TriggerPipelineRequest\x1a\x1e.ci.v1.TriggerPipelineResponse\x12D\n" +
 	"\vGetPipeline\x12\x19.ci.v1.GetPipelineRequest\x1a\x1a.ci.v1.GetPipelineResponse\x12J\n" +
 	"\rListPipelines\x12\x1b.ci.v1.ListPipelinesRequest\x1a\x1c.ci.v1.ListPipelinesResponse\x12M\n" +
 	"\x0eCancelPipeline\x12\x1c.ci.v1.CancelPipelineRequest\x1a\x1d.ci.v1.CancelPipelineResponse\x125\n" +
-	"\x06GetJob\x12\x14.ci.v1.GetJobRequest\x1a\x15.ci.v1.GetJobResponse\x12I\n" +
+	"\x06GetJob\x12\x14.ci.v1.GetJobRequest\x1a\x15.ci.v1.GetJobResponse\x12;\n" +
+	"\bRetryJob\x12\x16.ci.v1.RetryJobRequest\x1a\x17.ci.v1.RetryJobResponse\x12I\n" +
 	"\fStreamJobLog\x12\x1a.ci.v1.StreamJobLogRequest\x1a\x1b.ci.v1.StreamJobLogResponse0\x01\x12M\n" +
 	"\x0eValidateConfig\x12\x1c.ci.v1.ValidateConfigRequest\x1a\x1d.ci.v1.ValidateConfigResponseB\x8a\x01\n" +
 	"\tcom.ci.v1B\rPipelineProtoP\x01Z9github.com/git2-project/git2-runner/app/gen/go/ci/v1;civ1\xa2\x02\x03CXX\xaa\x02\x05Ci.V1\xca\x02\x05Ci\\V1\xe2\x02\x11Ci\\V1\\GPBMetadata\xea\x02\x06Ci::V1b\x06proto3"
@@ -1697,7 +1862,7 @@ func file_ci_v1_pipeline_proto_rawDescGZIP() []byte {
 }
 
 var file_ci_v1_pipeline_proto_enumTypes = make([]protoimpl.EnumInfo, 4)
-var file_ci_v1_pipeline_proto_msgTypes = make([]protoimpl.MessageInfo, 18)
+var file_ci_v1_pipeline_proto_msgTypes = make([]protoimpl.MessageInfo, 20)
 var file_ci_v1_pipeline_proto_goTypes = []any{
 	(PipelineStatus)(0),             // 0: ci.v1.PipelineStatus
 	(PipelineTrigger)(0),            // 1: ci.v1.PipelineTrigger
@@ -1716,53 +1881,59 @@ var file_ci_v1_pipeline_proto_goTypes = []any{
 	(*CancelPipelineResponse)(nil),  // 14: ci.v1.CancelPipelineResponse
 	(*GetJobRequest)(nil),           // 15: ci.v1.GetJobRequest
 	(*GetJobResponse)(nil),          // 16: ci.v1.GetJobResponse
-	(*StreamJobLogRequest)(nil),     // 17: ci.v1.StreamJobLogRequest
-	(*StreamJobLogResponse)(nil),    // 18: ci.v1.StreamJobLogResponse
-	(*ValidateConfigRequest)(nil),   // 19: ci.v1.ValidateConfigRequest
-	(*ValidateConfigResponse)(nil),  // 20: ci.v1.ValidateConfigResponse
-	(*ConfigError)(nil),             // 21: ci.v1.ConfigError
-	(*timestamppb.Timestamp)(nil),   // 22: google.protobuf.Timestamp
+	(*RetryJobRequest)(nil),         // 17: ci.v1.RetryJobRequest
+	(*RetryJobResponse)(nil),        // 18: ci.v1.RetryJobResponse
+	(*StreamJobLogRequest)(nil),     // 19: ci.v1.StreamJobLogRequest
+	(*StreamJobLogResponse)(nil),    // 20: ci.v1.StreamJobLogResponse
+	(*ValidateConfigRequest)(nil),   // 21: ci.v1.ValidateConfigRequest
+	(*ValidateConfigResponse)(nil),  // 22: ci.v1.ValidateConfigResponse
+	(*ConfigError)(nil),             // 23: ci.v1.ConfigError
+	(*timestamppb.Timestamp)(nil),   // 24: google.protobuf.Timestamp
 }
 var file_ci_v1_pipeline_proto_depIdxs = []int32{
 	0,  // 0: ci.v1.Pipeline.status:type_name -> ci.v1.PipelineStatus
 	1,  // 1: ci.v1.Pipeline.trigger:type_name -> ci.v1.PipelineTrigger
 	5,  // 2: ci.v1.Pipeline.stages:type_name -> ci.v1.Stage
-	22, // 3: ci.v1.Pipeline.created_at:type_name -> google.protobuf.Timestamp
-	22, // 4: ci.v1.Pipeline.started_at:type_name -> google.protobuf.Timestamp
-	22, // 5: ci.v1.Pipeline.finished_at:type_name -> google.protobuf.Timestamp
-	22, // 6: ci.v1.Pipeline.updated_at:type_name -> google.protobuf.Timestamp
+	24, // 3: ci.v1.Pipeline.created_at:type_name -> google.protobuf.Timestamp
+	24, // 4: ci.v1.Pipeline.started_at:type_name -> google.protobuf.Timestamp
+	24, // 5: ci.v1.Pipeline.finished_at:type_name -> google.protobuf.Timestamp
+	24, // 6: ci.v1.Pipeline.updated_at:type_name -> google.protobuf.Timestamp
 	6,  // 7: ci.v1.Stage.jobs:type_name -> ci.v1.Job
 	2,  // 8: ci.v1.Job.status:type_name -> ci.v1.JobStatus
 	3,  // 9: ci.v1.Job.failure_reason:type_name -> ci.v1.JobFailureReason
-	22, // 10: ci.v1.Job.created_at:type_name -> google.protobuf.Timestamp
-	22, // 11: ci.v1.Job.started_at:type_name -> google.protobuf.Timestamp
-	22, // 12: ci.v1.Job.finished_at:type_name -> google.protobuf.Timestamp
+	24, // 10: ci.v1.Job.created_at:type_name -> google.protobuf.Timestamp
+	24, // 11: ci.v1.Job.started_at:type_name -> google.protobuf.Timestamp
+	24, // 12: ci.v1.Job.finished_at:type_name -> google.protobuf.Timestamp
 	1,  // 13: ci.v1.TriggerPipelineRequest.trigger:type_name -> ci.v1.PipelineTrigger
 	4,  // 14: ci.v1.TriggerPipelineResponse.pipeline:type_name -> ci.v1.Pipeline
 	4,  // 15: ci.v1.GetPipelineResponse.pipeline:type_name -> ci.v1.Pipeline
 	4,  // 16: ci.v1.ListPipelinesResponse.pipelines:type_name -> ci.v1.Pipeline
 	4,  // 17: ci.v1.CancelPipelineResponse.pipeline:type_name -> ci.v1.Pipeline
 	6,  // 18: ci.v1.GetJobResponse.job:type_name -> ci.v1.Job
-	21, // 19: ci.v1.ValidateConfigResponse.errors:type_name -> ci.v1.ConfigError
-	7,  // 20: ci.v1.PipelineService.TriggerPipeline:input_type -> ci.v1.TriggerPipelineRequest
-	9,  // 21: ci.v1.PipelineService.GetPipeline:input_type -> ci.v1.GetPipelineRequest
-	11, // 22: ci.v1.PipelineService.ListPipelines:input_type -> ci.v1.ListPipelinesRequest
-	13, // 23: ci.v1.PipelineService.CancelPipeline:input_type -> ci.v1.CancelPipelineRequest
-	15, // 24: ci.v1.PipelineService.GetJob:input_type -> ci.v1.GetJobRequest
-	17, // 25: ci.v1.PipelineService.StreamJobLog:input_type -> ci.v1.StreamJobLogRequest
-	19, // 26: ci.v1.PipelineService.ValidateConfig:input_type -> ci.v1.ValidateConfigRequest
-	8,  // 27: ci.v1.PipelineService.TriggerPipeline:output_type -> ci.v1.TriggerPipelineResponse
-	10, // 28: ci.v1.PipelineService.GetPipeline:output_type -> ci.v1.GetPipelineResponse
-	12, // 29: ci.v1.PipelineService.ListPipelines:output_type -> ci.v1.ListPipelinesResponse
-	14, // 30: ci.v1.PipelineService.CancelPipeline:output_type -> ci.v1.CancelPipelineResponse
-	16, // 31: ci.v1.PipelineService.GetJob:output_type -> ci.v1.GetJobResponse
-	18, // 32: ci.v1.PipelineService.StreamJobLog:output_type -> ci.v1.StreamJobLogResponse
-	20, // 33: ci.v1.PipelineService.ValidateConfig:output_type -> ci.v1.ValidateConfigResponse
-	27, // [27:34] is the sub-list for method output_type
-	20, // [20:27] is the sub-list for method input_type
-	20, // [20:20] is the sub-list for extension type_name
-	20, // [20:20] is the sub-list for extension extendee
-	0,  // [0:20] is the sub-list for field type_name
+	6,  // 19: ci.v1.RetryJobResponse.job:type_name -> ci.v1.Job
+	4,  // 20: ci.v1.RetryJobResponse.pipeline:type_name -> ci.v1.Pipeline
+	23, // 21: ci.v1.ValidateConfigResponse.errors:type_name -> ci.v1.ConfigError
+	7,  // 22: ci.v1.PipelineService.TriggerPipeline:input_type -> ci.v1.TriggerPipelineRequest
+	9,  // 23: ci.v1.PipelineService.GetPipeline:input_type -> ci.v1.GetPipelineRequest
+	11, // 24: ci.v1.PipelineService.ListPipelines:input_type -> ci.v1.ListPipelinesRequest
+	13, // 25: ci.v1.PipelineService.CancelPipeline:input_type -> ci.v1.CancelPipelineRequest
+	15, // 26: ci.v1.PipelineService.GetJob:input_type -> ci.v1.GetJobRequest
+	17, // 27: ci.v1.PipelineService.RetryJob:input_type -> ci.v1.RetryJobRequest
+	19, // 28: ci.v1.PipelineService.StreamJobLog:input_type -> ci.v1.StreamJobLogRequest
+	21, // 29: ci.v1.PipelineService.ValidateConfig:input_type -> ci.v1.ValidateConfigRequest
+	8,  // 30: ci.v1.PipelineService.TriggerPipeline:output_type -> ci.v1.TriggerPipelineResponse
+	10, // 31: ci.v1.PipelineService.GetPipeline:output_type -> ci.v1.GetPipelineResponse
+	12, // 32: ci.v1.PipelineService.ListPipelines:output_type -> ci.v1.ListPipelinesResponse
+	14, // 33: ci.v1.PipelineService.CancelPipeline:output_type -> ci.v1.CancelPipelineResponse
+	16, // 34: ci.v1.PipelineService.GetJob:output_type -> ci.v1.GetJobResponse
+	18, // 35: ci.v1.PipelineService.RetryJob:output_type -> ci.v1.RetryJobResponse
+	20, // 36: ci.v1.PipelineService.StreamJobLog:output_type -> ci.v1.StreamJobLogResponse
+	22, // 37: ci.v1.PipelineService.ValidateConfig:output_type -> ci.v1.ValidateConfigResponse
+	30, // [30:38] is the sub-list for method output_type
+	22, // [22:30] is the sub-list for method input_type
+	22, // [22:22] is the sub-list for extension type_name
+	22, // [22:22] is the sub-list for extension extendee
+	0,  // [0:22] is the sub-list for field type_name
 }
 
 func init() { file_ci_v1_pipeline_proto_init() }
@@ -1777,7 +1948,7 @@ func file_ci_v1_pipeline_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_ci_v1_pipeline_proto_rawDesc), len(file_ci_v1_pipeline_proto_rawDesc)),
 			NumEnums:      4,
-			NumMessages:   18,
+			NumMessages:   20,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

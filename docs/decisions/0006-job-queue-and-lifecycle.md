@@ -35,6 +35,8 @@ A transaction that waits for a later-stage row always holds an earlier-stage one
 
 **Events.** `PipelineCreated`, `JobFinished` (once per job, `skipped` included) and `PipelineFinished` (once per pipeline) go to `ci_svc.outbox` in the transaction that makes the change.
 
+*Added 2026-11-15 (#16).* `RetryJob` adds a new attempt of a job (a new row, `attempt` + 1). Only the newest attempt of each job name counts for queueing, stage order and the pipeline's status; earlier attempts are history. A retry reopens a finished pipeline, so `PipelineFinished` comes once per run of the pipeline, and `JobFinished` once per attempt. `RetryJob` takes the same locks as `CancelPipeline` (all of the pipeline's jobs in stage order, then the pipeline).
+
 ## Consequences
 
 - A queued job reaches an idle runner in well under a second with Redis, and within 3 s without it (target: 5 s).

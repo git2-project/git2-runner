@@ -99,6 +99,18 @@ func (s *pipelineServer) GetJob(ctx context.Context, req *civ1.GetJobRequest) (*
 	return &civ1.GetJobResponse{Job: jobToProto(j)}, nil
 }
 
+func (s *pipelineServer) RetryJob(ctx context.Context, req *civ1.RetryJobRequest) (*civ1.RetryJobResponse, error) {
+	j, p, created, err := s.d.Pipelines.Retry(ctx, pipeline.RetryInput{
+		JobID:          req.GetJobId(),
+		IdempotencyKey: req.GetIdempotencyKey(),
+		TriggeredByID:  req.GetTriggeredById(),
+	})
+	if err != nil {
+		return nil, toStatus(ctx, s.d.Log, err)
+	}
+	return &civ1.RetryJobResponse{Job: jobToProto(j), Pipeline: pipelineToProto(p), Created: created}, nil
+}
+
 func (s *pipelineServer) StreamJobLog(req *civ1.StreamJobLogRequest, stream grpc.ServerStreamingServer[civ1.StreamJobLogResponse]) error {
 	ctx := stream.Context()
 	id, err := apierr.ParseID("job_id", req.GetJobId())

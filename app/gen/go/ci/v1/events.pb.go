@@ -125,9 +125,11 @@ func (x *PipelineCreated) GetOccurredAt() *timestamppb.Timestamp {
 	return nil
 }
 
-// PipelineFinished is published once, when a pipeline reaches a final
-// status (SUCCESS, FAILED or CANCELED). Dash uses it for the check mark on
-// commits and merge requests.
+// PipelineFinished is published when a pipeline reaches a final status
+// (SUCCESS, FAILED or CANCELED). Dash uses it for the check mark on commits
+// and merge requests. After RetryJob the pipeline runs again and reaches a
+// final status again, so the same pipeline_id can arrive more than once:
+// keep the one with the latest occurred_at.
 type PipelineFinished struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// ID of the pipeline.
@@ -218,7 +220,8 @@ func (x *PipelineFinished) GetOccurredAt() *timestamppb.Timestamp {
 	return nil
 }
 
-// JobFinished is published once, when a job reaches a final status.
+// JobFinished is published once per attempt, when it reaches a final status.
+// A retried job is a new attempt with its own job_id.
 type JobFinished struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// ID of the job.
