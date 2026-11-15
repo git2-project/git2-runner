@@ -53,7 +53,13 @@ Starts a pipeline for one commit. **Idempotent on `idempotency_key`**: the same 
 | `triggered_by_id` | auth-svc user ID, or empty |
 | `idempotency_key` | 1–512 bytes of UTF-8 text without control characters, so `"<event_id>:<ref>"` fits every valid ref (refs may be non-ASCII, up to 255 bytes). Required. For a push: `"<event_id>:<ref>"`. For a button: a UUID made when the user clicks, reused on retry |
 
-**For pushes.** Who calls `TriggerPipeline` for codeplane's `git.v1.RepositoryPushed` is still to be agreed with codeplane (WBS-1.3, W2). Whoever does: call it once per entry of `ref_updates` whose `new_sha` is not all zeros (deleted refs start nothing), with `commit_sha = new_sha`. Treat `NOT_FOUND` as "this repository has no CI" (do not retry). Retry `UNAVAILABLE`.
+**For pushes, nobody calls `TriggerPipeline`.** codeplane's relay delivers `git.v1.RepositoryPushed` to ci-svc's `events.v1.EventSink` ([ADR 0010](../decisions/0010-events-delivered-by-eventsink-push.md)), and ci-svc starts the pipelines itself.
+- It runs the same trigger once per entry of `ref_updates` whose `new_sha` is not all zeros, with `commit_sha = new_sha` and the idempotency key `"<event_id>:<ref>"`.
+- Deleted refs, `refs/notes/*` and refs over 255 bytes start nothing.
+- A commit without `.git2-ci.yml` starts nothing.
+- Built in W4 (git2-runner #20).
+
+`TriggerPipeline` is for manual runs (dash-api's "run pipeline") and for development. Treat `NOT_FOUND` as "this repository has no CI" (do not retry). Retry `UNAVAILABLE`.
 
 ```sh
 grpcurl -plaintext -d '{
@@ -101,6 +107,12 @@ For the ✓/✗ next to a commit or merge request, take the newest pipeline of t
 ## CancelPipeline
 
 Cancels every unfinished job. Waiting jobs (`CREATED`, `PENDING`) become `CANCELED` at once. `RUNNING` jobs are stopped by their runner within about 15 seconds and then show `CANCELED`; until then the response still shows them `RUNNING`. Canceling a finished pipeline is not an error and changes nothing.
+
+## Retrying
+
+**A whole pipeline** (the "Retry" button on a pipeline, git2-mcp's `retry_pipeline`): call [`TriggerPipeline`](#triggerpipeline) with the old pipeline's `repository_id`, `ref` and `commit_sha`, `trigger: PIPELINE_TRIGGER_MANUAL`, your user's `triggered_by_id`, and a **new** `idempotency_key`: a UUID made when the user clicks and reused if you retry the call. ci-svc reads `.git2-ci.yml` at that commit again and creates a new pipeline. The old pipeline stays as it was.
+
+**One job** (`RetryJob`) comes in W4 (git2-runner #16). It will add a new attempt of a finished job to the same pipeline and keep the earlier attempt's log. Until then, retry the whole pipeline.
 
 ## StreamJobLog
 

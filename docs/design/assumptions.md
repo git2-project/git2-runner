@@ -5,8 +5,8 @@ The other repos are still young, so we build against these assumptions until the
 | ID | Topic | Owner | Needed by | Status |
 |---|---|---|---|---|
 | [A-01](#a-01--ci-svc-lives-in-git2-runner) | ci-svc lives in git2-runner | Osman, Bilge and Beste informed | W1 | **confirmed** 2026-10-26 ([ADR 0001](../decisions/0001-ci-svc-lives-in-git2-runner.md)) |
-| [A-02](#a-02--how-a-push-reaches-us) | How a push reaches us | Apo | W4 | open |
-| [A-03](#a-03--reading-git2-ciyml-at-a-commit) | Reading `.git2-ci.yml` at a commit | Apo | W4 | open |
+| [A-02](#a-02--how-a-push-reaches-us) | How a push reaches us | Apo | W4 | **agreed** 2026-11-08 ([ADR 0010](../decisions/0010-events-delivered-by-eventsink-push.md)) |
+| [A-03](#a-03--reading-git2-ciyml-at-a-commit) | Reading `.git2-ci.yml` at a commit | Apo | W4 | **confirmed** 2026-11-09: `CommitService.GetBlob`, git2-codeplane `v0.2.0` |
 | [A-04](#a-04--how-a-job-gets-the-source-code) | How a job gets the source code | Apo | W4 | open |
 | [A-05](#a-05--the-ci-secrets-key-is-in-every-backup) | The CI secrets key is in every backup | Ceyda | W5 | open |
 | [A-06](#a-06--one-bucket-and-our-prefix) | One bucket, and our prefix | Ceyda | W6 | open |
@@ -16,7 +16,7 @@ The other repos are still young, so we build against these assumptions until the
 | [A-10](#a-10--who-checks-permissions) | Who checks permissions | everyone | W2 | open |
 | [A-11](#a-11--the-web-apps-reach-us-through-their-apis) | The web apps reach us through their APIs | Bilge, Beste | W5 | open |
 | [A-12](#a-12--ids-not-names) | IDs, not names | Apo | W1 | **confirmed** 2026-10-30: codeplane ADR 0002 |
-| [A-13](#a-13--one-outbox-format) | One outbox format | Apo, everyone | W4 | format **confirmed** 2026-10-29 (codeplane ADR 0007); delivery path open (WBS-1.3) |
+| [A-13](#a-13--one-outbox-format) | One outbox format | Apo, everyone | W4 | format **confirmed** 2026-10-29 (codeplane ADR 0007); delivery **agreed** 2026-11-08 ([ADR 0010](../decisions/0010-events-delivered-by-eventsink-push.md)) |
 | [A-14](#a-14--one-go-version-one-dsn-variable) | One Go version, one DSN variable | everyone | W2 | **confirmed** 2026-10-29: codeplane ADR 0010 moved to Go 1.26 and `POSTGRES_DSN` |
 | [A-15](#a-15--the-shared-redis) | The shared Redis | Ceyda, everyone | W2 | open |
 
@@ -33,13 +33,17 @@ Weeks: W1 starts 26 Oct 2026, W2 2 Nov, W3 9 Nov, W4 16 Nov, W5 23 Nov, W6 30 No
 
 **We assume:** whatever delivers codeplane's `git.v1.RepositoryPushed` event (codeplane itself, or a shared outbox relay) calls our `TriggerPipeline` once per created or updated branch or tag in the event, with the event ID plus the ref as the idempotency key. Deleted refs trigger nothing. Delivery is at least once, and we drop duplicates.
 **If wrong:** ci-svc reads codeplane's events itself, which needs read access to its outbox.
-**Status (2026-10-30):** to be agreed with Apo in the WBS-1.3 design (W2). Who calls `TriggerPipeline` is not decided.
+**Agreed on 2026-11-08** with Apo (git2-runner #33, [ADR 0010](../decisions/0010-events-delivered-by-eventsink-push.md)):
+- codeplane's relay pushes `RepositoryPushed` to ci-svc's `events.v1.EventSink`.
+- ci-svc records it and decides by itself which refs start pipelines, with the key `"<event_id>:<ref>"`.
+- Nobody else calls `TriggerPipeline` for pushes.
 
 ### A-03 · Reading `.git2-ci.yml` at a commit
 
 **We assume:** codeplane's gRPC API can return one file's content at a given commit. Its `repository.proto` plans this as `CommitService` for W2–W3.
 **If wrong:** pushes cannot start pipelines, and the M3 demo (11 Dec) is at risk.
-**Today (2026-10-29):** ci-svc reads files through a `Source` interface. In production it answers `UNAVAILABLE` until this RPC exists; in development `GIT2_CISVC_DEV_CONFIG_DIR` serves files from disk.
+**Confirmed on 2026-11-09:** `CommitService.GetBlob` (git2-codeplane `v0.2.0`, codeplane #8) returns one file at a ref, and `ref` may be a full commit SHA. `NOT_FOUND` with `path not found` means the commit has no `.git2-ci.yml`. ci-svc treats a reply marked `binary`, `lfs` or `truncated`, or a symlink, as an invalid config.
+**Until #18 (2026-10-29):** ci-svc reads files through a `Source` interface. In production it answers `UNAVAILABLE` until this RPC exists; in development `GIT2_CISVC_DEV_CONFIG_DIR` serves files from disk.
 
 ### A-04 · How a job gets the source code
 
@@ -91,7 +95,11 @@ Weeks: W1 starts 26 Oct 2026, W2 2 Nov, W3 9 Nov, W4 16 Nov, W5 23 Nov, W6 30 No
 ### A-13 · One outbox format
 
 **We assume:** every service writes its events to `<schema>.outbox` in the same transaction as the change: an ID (UUID), the type (the full proto message name, for example `ci.v1.PipelineFinished`), the payload (canonical protobuf JSON) and `created_at`. codeplane is the first service to build this; we copy its format.
-**Format confirmed** (codeplane ADR 0007). **Delivery still open:** a relay that reads every service's outbox would break the one-schema-per-service rule (codeplane ADR 0006), so how events leave each outbox is to be agreed in the WBS-1.3 design (W2). Delivery stays at least once.
+**Format confirmed** (codeplane ADR 0007).
+**Delivery agreed on 2026-11-08** ([ADR 0010](../decisions/0010-events-delivered-by-eventsink-push.md)):
+- Each producer's relay pushes its own outbox to `events.v1.EventSink.Deliver` on its subscribers.
+- A shared relay is ruled out: reading every service's outbox would break the one-schema-per-service rule of git2's `CLAUDE.md` and `README.md`.
+- Delivery stays at least once.
 **If wrong:** we follow whatever format codeplane ships.
 
 ### A-14 · One Go version, one DSN variable
