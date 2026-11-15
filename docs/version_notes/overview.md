@@ -23,6 +23,7 @@ the right month folder and add a line at the top of that month's table below.
 
 | Date | What changed | Affects | Tag |
 |---|---|---|---|
+| [9 Nov](2026/11/09_11.md) | ci-svc reads `.git2-ci.yml` from git-svc (`GetBlob`): new variable `GIT_SVC_GRPC_ADDR` (Compose: `git-svc:9090`). A `.git2-ci.yml` that is a directory, symlink, LFS pointer, binary or over 256 KiB now gives a `FAILED` pipeline with that reason. Deploy sets the variable when ci-svc joins Compose. | Deploy, Dash | 🟠 Action |
 | [8 Nov](2026/11/08_11.md) | Agreed with codeplane (ADR 0010): each producer's relay pushes its outbox to `events.v1.EventSink.Deliver`. ci-svc records `RepositoryPushed` and starts the pipelines itself, so nobody calls `TriggerPipeline` for pushes. Codeplane publishes `events.v1` and builds the relay; Dash plans an `EventSink` for `PipelineFinished`; Deploy wires relay subscribers. Also: retrying a whole pipeline is a `TriggerPipeline` call with a new key; `RetryJob` comes in W4. | Codeplane, Dash, Deploy | 🟠 Action |
 
 ## 2026 · October

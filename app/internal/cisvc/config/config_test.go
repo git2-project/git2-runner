@@ -55,3 +55,34 @@ func TestParse(t *testing.T) {
 		t.Errorf("dev config: %+v %v", cfg, err)
 	}
 }
+
+func TestParseGitSvcAddr(t *testing.T) {
+	key := make([]byte, 32)
+	_, _ = rand.Read(key)
+	base := map[string]string{EnvPostgresDSN: "postgres://x", EnvSecretsKey: base64.StdEncoding.EncodeToString(key)}
+	with := func(kv ...string) map[string]string {
+		env := map[string]string{}
+		for k, v := range base {
+			env[k] = v
+		}
+		for i := 0; i < len(kv); i += 2 {
+			env[kv[i]] = kv[i+1]
+		}
+		return env
+	}
+
+	cfg, err := parse(lookup(with(EnvGitSvcAddr, "git-svc:9090")))
+	if err != nil || cfg.GitSvcAddr != "git-svc:9090" {
+		t.Errorf("git-svc address: %+v %v", cfg, err)
+	}
+	if cfg, _ := parse(lookup(with())); cfg.GitSvcAddr != "" {
+		t.Errorf("unset address became %q", cfg.GitSvcAddr)
+	}
+	if _, err := parse(lookup(with(EnvGitSvcAddr, "git-svc"))); err == nil || !strings.Contains(err.Error(), EnvGitSvcAddr) {
+		t.Errorf("address without a port: %v", err)
+	}
+	_, err = parse(lookup(with(EnvGitSvcAddr, "git-svc:9090", EnvDev, "true", EnvDevConfigDir, t.TempDir())))
+	if err == nil || !strings.Contains(err.Error(), EnvGitSvcAddr) || !strings.Contains(err.Error(), EnvDevConfigDir) {
+		t.Errorf("both sources set: %v", err)
+	}
+}

@@ -22,6 +22,10 @@ import (
 	"time"
 
 	"github.com/redis/go-redis/v9"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
+
+	gitv1 "github.com/git2-project/git2-codeplane/gen/go/git/v1"
 
 	"github.com/git2-project/git2-runner/app/internal/cisvc/config"
 	"github.com/git2-project/git2-runner/app/internal/cisvc/db"
@@ -99,9 +103,23 @@ func serve(ctx context.Context, log *slog.Logger, cfg config.Config) error {
 	go hub.Run(ctx)
 
 	var src source.Source = source.Unavailable{}
-	if cfg.DevConfigDir != "" {
+	switch {
+	case cfg.DevConfigDir != "":
 		src = source.Dir{Root: cfg.DevConfigDir}
 		log.Warn("dev mode: reading .git2-ci.yml from a local directory", slog.String("dir", cfg.DevConfigDir))
+	case cfg.GitSvcAddr != "":
+		// git-svc is reached on the instance network, like the gateway
+		// reaches it. The connection is lazy: git-svc being down only
+		// delays pipelines (UNAVAILABLE, retried), it never stops ci-svc.
+		conn, err := grpc.NewClient(cfg.GitSvcAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+		if err != nil {
+			return fmt.Errorf("git-svc client: %w", err)
+		}
+		defer func() { _ = conn.Close() }()
+		src = source.GitSvc{Client: gitv1.NewCommitServiceClient(conn)}
+		log.Info("reading .git2-ci.yml from git-svc", slog.String("addr", cfg.GitSvcAddr))
+	default:
+		log.Warn("GIT_SVC_GRPC_ADDR is not set: pushes cannot start pipelines")
 	}
 	pipelines := pipeline.NewService(pool, src, secretSvc, hub, log, pipeline.DefaultOptions())
 	go pipelines.RunReaper(ctx, reapEvery)

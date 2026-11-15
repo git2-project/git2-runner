@@ -34,10 +34,20 @@ import (
 	"github.com/git2-project/git2-runner/app/internal/cisvc/testdb"
 )
 
-// fakeSource serves one .git2-ci.yml per repository.
+// fakeSource serves one .git2-ci.yml, or one error, per repository.
 type fakeSource struct {
 	mu    sync.Mutex
 	files map[uuid.UUID][]byte
+	errs  map[uuid.UUID]error
+}
+
+func (f *fakeSource) setErr(repo uuid.UUID, err error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.errs == nil {
+		f.errs = map[uuid.UUID]error{}
+	}
+	f.errs[repo] = err
 }
 
 func (f *fakeSource) set(repo uuid.UUID, content string) {
@@ -49,6 +59,9 @@ func (f *fakeSource) set(repo uuid.UUID, content string) {
 func (f *fakeSource) ReadCIFile(_ context.Context, repo uuid.UUID, _ string) ([]byte, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+	if err, ok := f.errs[repo]; ok {
+		return nil, err
+	}
 	if b, ok := f.files[repo]; ok {
 		return b, nil
 	}
@@ -535,6 +548,24 @@ func TestConfigErrors(t *testing.T) {
 			Trigger: civ1.PipelineTrigger_PIPELINE_TRIGGER_PUSH, IdempotencyKey: uuid.NewString(),
 		})
 		wantCode(t, "no .git2-ci.yml", err, codes.NotFound)
+
+		// A file git-svc returns but that cannot be a pipeline (#18) makes a
+		// failed pipeline with the reason, like a file that does not parse.
+		lfs := e.newRepo(t, "")
+		e.src.setErr(lfs, &source.InvalidFileError{Reason: "it is stored in Git LFS"})
+		if p := e.trigger(t, lfs); p.GetStatus() != civ1.PipelineStatus_PIPELINE_STATUS_FAILED ||
+			p.GetErrorMessage() != ".git2-ci.yml is invalid: it is stored in Git LFS" || p.GetFinishedAt() == nil {
+			t.Fatalf("LFS pointer: status %v message %q", p.GetStatus(), p.GetErrorMessage())
+		}
+
+		// A git-svc fault is UNAVAILABLE, so the push is retried.
+		down := e.newRepo(t, "")
+		e.src.setErr(down, errors.New("git-svc GetBlob: connection refused"))
+		_, err = e.ps.TriggerPipeline(ctx, &civ1.TriggerPipelineRequest{
+			RepositoryId: down.String(), Ref: "refs/heads/main", CommitSha: sha(),
+			Trigger: civ1.PipelineTrigger_PIPELINE_TRIGGER_PUSH, IdempotencyKey: uuid.NewString(),
+		})
+		wantCode(t, "git-svc down", err, codes.Unavailable)
 
 		for name, req := range map[string]*civ1.TriggerPipelineRequest{
 			"bad repository": {RepositoryId: "x", Ref: "refs/heads/main", CommitSha: sha(), Trigger: 1, IdempotencyKey: "k"},

@@ -22,7 +22,8 @@ Both log JSON to stdout and stop gracefully on SIGTERM (ci-svc within 20 s; the 
 | `GIT2_CISVC_RUNNER_ADDR` | `:9091` | Runner port: the only port build hosts reach |
 | `GIT2_CISVC_RUNNER_TLS_CERT`, `GIT2_CISVC_RUNNER_TLS_KEY` | empty | PEM files for TLS on the runner port. Set both, or neither and terminate TLS in front of the port (an ingress that passes HTTP/2 through) |
 | `GIT2_CISVC_DEV` | `false` | Development only: gRPC reflection, and allows `GIT2_CISVC_DEV_CONFIG_DIR` |
-| `GIT2_CISVC_DEV_CONFIG_DIR` | empty | Development only: read `.git2-ci.yml` from `<dir>/<repository_id>/.git2-ci.yml` instead of git-svc |
+| `GIT_SVC_GRPC_ADDR` | empty | git-svc's gRPC address, `host:port` (Compose: `git-svc:9090`). ci-svc reads `.git2-ci.yml` there at the pushed commit, with `CommitService.GetBlob`. The same variable name as git2's gateway. **Empty: pushes cannot start pipelines**, and ci-svc logs a warning at startup. git-svc being down never stops ci-svc: a trigger then answers `UNAVAILABLE` and is retried |
+| `GIT2_CISVC_DEV_CONFIG_DIR` | empty | Development only: read `.git2-ci.yml` from `<dir>/<repository_id>/.git2-ci.yml` instead of git-svc. Set this or `GIT_SVC_GRPC_ADDR`, not both |
 | `GIT2_CISVC_LOG_LEVEL` | `info` | `debug`, `info`, `warn`, `error` |
 
 ci-svc lists every invalid variable at once and exits with code 1. It never logs the DSN, the Redis password or the key.
