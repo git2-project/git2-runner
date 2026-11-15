@@ -57,7 +57,8 @@ const (
 	StatusCanceled Status = "canceled"
 )
 
-// Final reports whether the status never changes again.
+// Final reports whether the pipeline has finished. Only Retry makes a
+// final pipeline run again.
 func (s Status) Final() bool {
 	return s == StatusSuccess || s == StatusFailed || s == StatusCanceled
 }
@@ -191,17 +192,20 @@ type Pipeline struct {
 	StartedAt      *time.Time
 	FinishedAt     *time.Time
 	UpdatedAt      time.Time
-	// Jobs sorted by stage, then name.
+	// The newest attempt of each job, sorted by stage, then name.
 	Jobs []Job
 }
 
-// Job is one job of a pipeline.
+// Job is one attempt of one job of a pipeline. Retry adds attempts;
+// earlier ones keep their status and log.
 type Job struct {
 	ID            uuid.UUID
 	PipelineID    uuid.UUID
 	Stage         string
 	StageIndex    int
 	Name          string
+	Attempt       int32
+	RetryOf       uuid.NullUUID
 	Image         string
 	Status        JobStatus
 	FailureReason FailureReason

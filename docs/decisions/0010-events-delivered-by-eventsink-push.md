@@ -38,7 +38,7 @@ These limits were fixed:
 
 ## Consequences
 
-- **New table.** git2 gets a migration `004_ci_inbox.sql` for `ci_svc.inbox`, and this repo gets its copy (ADR 0009). It is built with #20 (a push starts a pipeline end to end, W4).
+- **New table.** git2 gets a migration for `ci_svc.inbox`, and this repo gets its copy (ADR 0009). It is `006_ci_inbox_and_attempts.sql` (004 and 005 went to auth-svc), shared with #16's job attempts; the worker that uses it comes with #20 (a push starts a pipeline end to end).
 - **New service.** ci-svc's internal port serves `events.v1.EventSink` once codeplane publishes the contract. Pushes no longer go through `TriggerPipeline`. That RPC stays for manual runs (dash-api) and for development.
 - **codeplane** builds its relay as git2-codeplane ADR 0014 (git2-codeplane #15), configured with `GIT2_GITSVC_EVENT_SINKS`, for example `ci-svc:9090=git.v1.RepositoryPushed`.
 - **dash-api** serves `EventSink` to receive our events.

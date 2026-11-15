@@ -32,7 +32,7 @@ ci-svc lists every invalid variable at once and exits with code 1. It never logs
 
 At startup ci-svc:
 
-1. connects to PostgreSQL and **refuses to start if a `ci_svc` table is missing** (the git2 migration `003_ci_pipelines.sql` has not been applied);
+1. connects to PostgreSQL and **refuses to start if a `ci_svc` table or column is missing**: git2's `003_ci_pipelines.sql` or `006_ci_inbox_and_attempts.sql` has not been applied;
 2. **refuses to start if stored CI secrets were encrypted with a different key** than `GIT2_CI_SECRETS_KEY`, naming both key IDs (`k1:…`): you restored a database without its key;
 3. connects to Redis if configured. An unreachable Redis is only a warning; ci-svc keeps retrying and works without it;
 4. serves both ports.
@@ -41,7 +41,7 @@ Health: the standard gRPC health service on both ports (`grpc.health.v1.Health/C
 
 ## Database
 
-- Schema `ci_svc`, created by [`migrations/003_ci_pipelines.sql`](https://github.com/git2-project/git2/tree/dev/main/migrations) in the git2 repo, applied like the other services' migrations. ci-svc never changes the schema.
+- Schema `ci_svc`, created by `003_ci_pipelines.sql` and extended by `006_ci_inbox_and_attempts.sql` in [git2's `migrations/`](https://github.com/git2-project/git2/tree/dev/main/migrations), applied like the other services' migrations. ci-svc never changes the schema.
 - ci-svc's runtime role needs `USAGE` on the schema, `SELECT, INSERT, UPDATE, DELETE` on its tables, and `USAGE` on `ci_svc.outbox_id_seq`.
 - No session state: it works through transaction poolers.
 

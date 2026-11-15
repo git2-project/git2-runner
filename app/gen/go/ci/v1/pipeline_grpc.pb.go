@@ -57,6 +57,7 @@ const (
 	PipelineService_ListPipelines_FullMethodName   = "/ci.v1.PipelineService/ListPipelines"
 	PipelineService_CancelPipeline_FullMethodName  = "/ci.v1.PipelineService/CancelPipeline"
 	PipelineService_GetJob_FullMethodName          = "/ci.v1.PipelineService/GetJob"
+	PipelineService_RetryJob_FullMethodName        = "/ci.v1.PipelineService/RetryJob"
 	PipelineService_StreamJobLog_FullMethodName    = "/ci.v1.PipelineService/StreamJobLog"
 	PipelineService_ValidateConfig_FullMethodName  = "/ci.v1.PipelineService/ValidateConfig"
 )
@@ -126,6 +127,32 @@ type PipelineServiceClient interface {
 	//   - INVALID_ARGUMENT: id is not a UUID.
 	//   - NOT_FOUND: no job has this ID.
 	GetJob(ctx context.Context, in *GetJobRequest, opts ...grpc.CallOption) (*GetJobResponse, error)
+	// RetryJob runs a finished job again, as a new attempt in the same
+	// pipeline.
+	//
+	// The new attempt has the same name, stage and spec, attempt one higher,
+	// and retry_of_id set to the job it retries. The earlier attempt keeps
+	// its status and its log, and GetJob and StreamJobLog still serve it.
+	// GetPipeline and ListPipelines show only the newest attempt of each job.
+	//
+	// Jobs of later stages that never ran (SKIPPED, or CANCELED before they
+	// started) get new attempts too, so the pipeline continues past the
+	// retried job. The pipeline becomes PENDING or RUNNING again, and
+	// ci.v1.PipelineFinished is published again when it ends.
+	//
+	// To run every job again, start a new pipeline with TriggerPipeline
+	// instead (PIPELINE_TRIGGER_MANUAL, same repository, ref and commit).
+	//
+	// Errors:
+	//   - INVALID_ARGUMENT: job_id or triggered_by_id is not a UUID, or
+	//     idempotency_key breaks its rules.
+	//   - NOT_FOUND: no job has this ID.
+	//   - FAILED_PRECONDITION: the pipeline has not finished; the job is not
+	//     the newest attempt of its name; the job did not succeed, fail or
+	//     get canceled (a SKIPPED job is retried through its earlier stage);
+	//     or a job of an earlier stage did not succeed.
+	//   - ALREADY_EXISTS: idempotency_key was used to retry another job.
+	RetryJob(ctx context.Context, in *RetryJobRequest, opts ...grpc.CallOption) (*RetryJobResponse, error)
 	// StreamJobLog sends a job's log from a byte offset on.
 	//
 	// Without follow, the stream sends the log as it is now and ends. With
@@ -203,6 +230,16 @@ func (c *pipelineServiceClient) GetJob(ctx context.Context, in *GetJobRequest, o
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(GetJobResponse)
 	err := c.cc.Invoke(ctx, PipelineService_GetJob_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *pipelineServiceClient) RetryJob(ctx context.Context, in *RetryJobRequest, opts ...grpc.CallOption) (*RetryJobResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(RetryJobResponse)
+	err := c.cc.Invoke(ctx, PipelineService_RetryJob_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -303,6 +340,32 @@ type PipelineServiceServer interface {
 	//   - INVALID_ARGUMENT: id is not a UUID.
 	//   - NOT_FOUND: no job has this ID.
 	GetJob(context.Context, *GetJobRequest) (*GetJobResponse, error)
+	// RetryJob runs a finished job again, as a new attempt in the same
+	// pipeline.
+	//
+	// The new attempt has the same name, stage and spec, attempt one higher,
+	// and retry_of_id set to the job it retries. The earlier attempt keeps
+	// its status and its log, and GetJob and StreamJobLog still serve it.
+	// GetPipeline and ListPipelines show only the newest attempt of each job.
+	//
+	// Jobs of later stages that never ran (SKIPPED, or CANCELED before they
+	// started) get new attempts too, so the pipeline continues past the
+	// retried job. The pipeline becomes PENDING or RUNNING again, and
+	// ci.v1.PipelineFinished is published again when it ends.
+	//
+	// To run every job again, start a new pipeline with TriggerPipeline
+	// instead (PIPELINE_TRIGGER_MANUAL, same repository, ref and commit).
+	//
+	// Errors:
+	//   - INVALID_ARGUMENT: job_id or triggered_by_id is not a UUID, or
+	//     idempotency_key breaks its rules.
+	//   - NOT_FOUND: no job has this ID.
+	//   - FAILED_PRECONDITION: the pipeline has not finished; the job is not
+	//     the newest attempt of its name; the job did not succeed, fail or
+	//     get canceled (a SKIPPED job is retried through its earlier stage);
+	//     or a job of an earlier stage did not succeed.
+	//   - ALREADY_EXISTS: idempotency_key was used to retry another job.
+	RetryJob(context.Context, *RetryJobRequest) (*RetryJobResponse, error)
 	// StreamJobLog sends a job's log from a byte offset on.
 	//
 	// Without follow, the stream sends the log as it is now and ends. With
@@ -350,6 +413,9 @@ func (UnimplementedPipelineServiceServer) CancelPipeline(context.Context, *Cance
 }
 func (UnimplementedPipelineServiceServer) GetJob(context.Context, *GetJobRequest) (*GetJobResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetJob not implemented")
+}
+func (UnimplementedPipelineServiceServer) RetryJob(context.Context, *RetryJobRequest) (*RetryJobResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method RetryJob not implemented")
 }
 func (UnimplementedPipelineServiceServer) StreamJobLog(*StreamJobLogRequest, grpc.ServerStreamingServer[StreamJobLogResponse]) error {
 	return status.Error(codes.Unimplemented, "method StreamJobLog not implemented")
@@ -468,6 +534,24 @@ func _PipelineService_GetJob_Handler(srv interface{}, ctx context.Context, dec f
 	return interceptor(ctx, in, info, handler)
 }
 
+func _PipelineService_RetryJob_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RetryJobRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(PipelineServiceServer).RetryJob(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: PipelineService_RetryJob_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(PipelineServiceServer).RetryJob(ctx, req.(*RetryJobRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _PipelineService_StreamJobLog_Handler(srv interface{}, stream grpc.ServerStream) error {
 	m := new(StreamJobLogRequest)
 	if err := stream.RecvMsg(m); err != nil {
@@ -523,6 +607,10 @@ var PipelineService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetJob",
 			Handler:    _PipelineService_GetJob_Handler,
+		},
+		{
+			MethodName: "RetryJob",
+			Handler:    _PipelineService_RetryJob_Handler,
 		},
 		{
 			MethodName: "ValidateConfig",

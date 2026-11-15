@@ -39,7 +39,9 @@ When `TriggerPipeline` creates a pipeline (not when it returns an existing one).
 
 ## `ci.v1.PipelineFinished`
 
-Once per pipeline, when it reaches `SUCCESS`, `FAILED` or `CANCELED`. This is the kickoff deck's `pipeline.finished`: **Dash uses it for the ✓/✗ on commits and merge requests**, and for "pipeline failed" notifications.
+Each time a pipeline reaches `SUCCESS`, `FAILED` or `CANCELED`. This is the kickoff deck's `pipeline.finished`: **Dash uses it for the ✓/✗ on commits and merge requests**, and for "pipeline failed" notifications.
+
+Usually once per pipeline. After [`RetryJob`](pipelines.md#retryjob) the pipeline runs again and finishes again, so **the same `pipelineId` can arrive more than once, with a new `eventId` each time**: keep the status with the latest `occurredAt`.
 
 ```json
 {"pipelineId": "<id>", "repositoryId": "<id>", "ref": "refs/heads/main",
@@ -51,7 +53,7 @@ A pipeline whose `.git2-ci.yml` is invalid is created and finished at once (`FAI
 
 ## `ci.v1.JobFinished`
 
-Once per job, when it reaches `SUCCESS`, `FAILED`, `CANCELED` or `SKIPPED`.
+Once per job attempt, when it reaches `SUCCESS`, `FAILED`, `CANCELED` or `SKIPPED`. A retried job is a new attempt with its own `jobId`.
 
 ```json
 {"jobId": "<id>", "pipelineId": "<id>", "repositoryId": "<id>", "name": "unit",

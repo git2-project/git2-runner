@@ -23,13 +23,19 @@ func scanPipeline(row pgx.Row) (Pipeline, error) {
 	return p, err
 }
 
-const jobColumns = `id, pipeline_id, stage, stage_index, name, spec->>'image', status, failure_reason,
-	exit_code, runner_id, log_size, created_at, started_at, finished_at`
+// jobColumns are read from ci_svc.jobs under the alias j.
+const jobColumns = `j.id, j.pipeline_id, j.stage, j.stage_index, j.name, j.attempt, j.retry_of, j.spec->>'image',
+	j.status, j.failure_reason, j.exit_code, j.runner_id, j.log_size, j.created_at, j.started_at, j.finished_at`
+
+// newestAttempt keeps only the newest attempt of each job of ci_svc.jobs j.
+// The unique index on (pipeline_id, name, attempt) answers it.
+const newestAttempt = `NOT EXISTS (SELECT 1 FROM ci_svc.jobs newer
+	WHERE newer.pipeline_id = j.pipeline_id AND newer.name = j.name AND newer.attempt > j.attempt)`
 
 func scanJob(row pgx.Row) (Job, error) {
 	var j Job
-	err := row.Scan(&j.ID, &j.PipelineID, &j.Stage, &j.StageIndex, &j.Name, &j.Image, &j.Status, &j.FailureReason,
-		&j.ExitCode, &j.RunnerID, &j.LogSize, &j.CreatedAt, &j.StartedAt, &j.FinishedAt)
+	err := row.Scan(&j.ID, &j.PipelineID, &j.Stage, &j.StageIndex, &j.Name, &j.Attempt, &j.RetryOf, &j.Image,
+		&j.Status, &j.FailureReason, &j.ExitCode, &j.RunnerID, &j.LogSize, &j.CreatedAt, &j.StartedAt, &j.FinishedAt)
 	return j, err
 }
 
@@ -46,7 +52,8 @@ func (s *Service) Get(ctx context.Context, id uuid.UUID) (Pipeline, error) {
 	if err != nil {
 		return Pipeline{}, fmt.Errorf("get pipeline: %w", err)
 	}
-	rows, err := s.pool.Query(ctx, `SELECT `+jobColumns+` FROM ci_svc.jobs WHERE pipeline_id = $1 ORDER BY stage_index, name`, id)
+	rows, err := s.pool.Query(ctx, `SELECT `+jobColumns+` FROM ci_svc.jobs j
+		WHERE j.pipeline_id = $1 AND `+newestAttempt+` ORDER BY j.stage_index, j.name`, id)
 	if err != nil {
 		return Pipeline{}, fmt.Errorf("get jobs: %w", err)
 	}
@@ -115,8 +122,9 @@ func (s *Service) attachJobs(ctx context.Context, q db.Querier, list []Pipeline)
 		index[p.ID] = i
 	}
 	rows, err := q.Query(ctx, `
-		SELECT `+jobColumns+` FROM ci_svc.jobs
-		WHERE pipeline_id = ANY($1::uuid[]) ORDER BY pipeline_id, stage_index, name`, ids)
+		SELECT `+jobColumns+` FROM ci_svc.jobs j
+		WHERE j.pipeline_id = ANY($1::uuid[]) AND `+newestAttempt+`
+		ORDER BY j.pipeline_id, j.stage_index, j.name`, ids)
 	if err != nil {
 		return fmt.Errorf("list jobs: %w", err)
 	}
@@ -134,9 +142,9 @@ func (s *Service) attachJobs(ctx context.Context, q db.Querier, list []Pipeline)
 // errJobNotFound is returned for an unknown job ID.
 var errJobNotFound = apierr.New(apierr.NotFound, "job not found")
 
-// GetJob returns a job.
+// GetJob returns a job. Any attempt can be read, not only the newest.
 func (s *Service) GetJob(ctx context.Context, id uuid.UUID) (Job, error) {
-	j, err := scanJob(s.pool.QueryRow(ctx, `SELECT `+jobColumns+` FROM ci_svc.jobs WHERE id = $1`, id))
+	j, err := scanJob(s.pool.QueryRow(ctx, `SELECT `+jobColumns+` FROM ci_svc.jobs j WHERE j.id = $1`, id))
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Job{}, errJobNotFound
 	}

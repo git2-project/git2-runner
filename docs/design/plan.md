@@ -101,7 +101,7 @@ GitLab (Rails plus gitlab-runner) and GitHub Actions (the service plus self-host
 
 ### 3.2 gRPC API v0 (package `ci.v1`)
 
-Built on 2026-10-29: [`app/proto/ci/v1/`](../../app/proto/ci/v1/), documented in [docs/api/](../api/README.md). Changes from the first sketch: `AppendLog` is unary and idempotent by offset (not a client stream); `ValidateConfig` was added; `RetryJob` (W4–W5) and the artifact RPCs (W6–W7) come later.
+Built on 2026-10-29: [`app/proto/ci/v1/`](../../app/proto/ci/v1/), documented in [docs/api/](../api/README.md). Changes from the first sketch: `AppendLog` is unary and idempotent by offset (not a client stream); `ValidateConfig` was added; `RetryJob` was added on 2026-11-15 (#16); the artifact RPCs (W6–W7) come later.
 
 | Service | RPC | Called by | What it does |
 |---|---|---|---|

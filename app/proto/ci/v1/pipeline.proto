@@ -102,6 +102,33 @@ service PipelineService {
   //   - NOT_FOUND: no job has this ID.
   rpc GetJob(GetJobRequest) returns (GetJobResponse);
 
+  // RetryJob runs a finished job again, as a new attempt in the same
+  // pipeline.
+  //
+  // The new attempt has the same name, stage and spec, attempt one higher,
+  // and retry_of_id set to the job it retries. The earlier attempt keeps
+  // its status and its log, and GetJob and StreamJobLog still serve it.
+  // GetPipeline and ListPipelines show only the newest attempt of each job.
+  //
+  // Jobs of later stages that never ran (SKIPPED, or CANCELED before they
+  // started) get new attempts too, so the pipeline continues past the
+  // retried job. The pipeline becomes PENDING or RUNNING again, and
+  // ci.v1.PipelineFinished is published again when it ends.
+  //
+  // To run every job again, start a new pipeline with TriggerPipeline
+  // instead (PIPELINE_TRIGGER_MANUAL, same repository, ref and commit).
+  //
+  // Errors:
+  //   - INVALID_ARGUMENT: job_id or triggered_by_id is not a UUID, or
+  //     idempotency_key breaks its rules.
+  //   - NOT_FOUND: no job has this ID.
+  //   - FAILED_PRECONDITION: the pipeline has not finished; the job is not
+  //     the newest attempt of its name; the job did not succeed, fail or
+  //     get canceled (a SKIPPED job is retried through its earlier stage);
+  //     or a job of an earlier stage did not succeed.
+  //   - ALREADY_EXISTS: idempotency_key was used to retry another job.
+  rpc RetryJob(RetryJobRequest) returns (RetryJobResponse);
+
   // StreamJobLog sends a job's log from a byte offset on.
   //
   // Without follow, the stream sends the log as it is now and ends. With
@@ -130,8 +157,8 @@ service PipelineService {
 
 // PipelineStatus is the state of a pipeline.
 //
-// PENDING and RUNNING are not final; the others are, and a pipeline in a
-// final state never changes again.
+// PENDING and RUNNING are not final; the others are. A pipeline in a final
+// state changes again only when RetryJob runs one of its jobs again.
 enum PipelineStatus {
   // Never used.
   PIPELINE_STATUS_UNSPECIFIED = 0;
@@ -261,7 +288,8 @@ message Job {
   // ID of the pipeline the job belongs to.
   string pipeline_id = 2;
 
-  // Name of the job, unique within its pipeline, as in .git2-ci.yml.
+  // Name of the job, as in .git2-ci.yml. Unique within its pipeline for
+  // each attempt.
   string name = 3;
 
   // Name of the job's stage.
@@ -294,6 +322,14 @@ message Job {
 
   // When it reached a final status. Unset until then.
   google.protobuf.Timestamp finished_at = 13;
+
+  // Which run of this job it is: 1 for the first, one more for each
+  // RetryJob.
+  int32 attempt = 14;
+
+  // ID of the attempt this one retries. Empty for the first attempt. Follow
+  // it with GetJob to show earlier attempts and their logs.
+  string retry_of_id = 15;
 }
 
 // TriggerPipelineRequest is the input of TriggerPipeline.
@@ -397,6 +433,34 @@ message GetJobRequest {
 message GetJobResponse {
   // The job.
   Job job = 1;
+}
+
+// RetryJobRequest is the input of RetryJob.
+message RetryJobRequest {
+  // ID of the job to run again: the newest attempt of its name. Required.
+  string job_id = 1;
+
+  // Makes the call idempotent: one key, one new attempt. Generate a UUID
+  // when the user clicks "retry", and reuse it when you retry the call.
+  // 1 to 512 bytes of UTF-8 text without control characters. Required.
+  string idempotency_key = 2;
+
+  // ID of the user who pressed "retry". Optional; empty or a UUID.
+  string triggered_by_id = 3;
+}
+
+// RetryJobResponse is the output of RetryJob.
+message RetryJobResponse {
+  // The new attempt.
+  Job job = 1;
+
+  // The job's pipeline after the retry, with the newest attempt of each
+  // job.
+  Pipeline pipeline = 2;
+
+  // True if this call created the attempt, false if an earlier call with
+  // the same idempotency_key did.
+  bool created = 3;
 }
 
 // StreamJobLogRequest is the input of StreamJobLog.

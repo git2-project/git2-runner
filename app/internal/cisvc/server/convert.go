@@ -64,9 +64,13 @@ func jobToProto(j pipeline.Job) *civ1.Job {
 		CreatedAt:     timestamppb.New(j.CreatedAt),
 		StartedAt:     ts(j.StartedAt),
 		FinishedAt:    ts(j.FinishedAt),
+		Attempt:       j.Attempt,
 	}
 	if j.RunnerID.Valid {
 		out.RunnerId = j.RunnerID.UUID.String()
+	}
+	if j.RetryOf.Valid {
+		out.RetryOfId = j.RetryOf.UUID.String()
 	}
 	return out
 }

@@ -8,7 +8,8 @@ On ci-svc's **internal port** (`:9090`). For dash-api (pipeline views, logs, the
 | [`GetPipeline`](#getpipeline-and-listpipelines) | `id` → `pipeline` with jobs | `INVALID_ARGUMENT`, `NOT_FOUND` |
 | [`ListPipelines`](#getpipeline-and-listpipelines) | `repository_id`, optional `ref`, page → `pipelines`, `next_page_token` | `INVALID_ARGUMENT` |
 | [`CancelPipeline`](#cancelpipeline) | `id` → `pipeline` | `INVALID_ARGUMENT`, `NOT_FOUND` |
-| `GetJob` | `id` → `job` | `INVALID_ARGUMENT`, `NOT_FOUND` |
+| [`RetryJob`](#retryjob) | `job_id`, idempotency key → new attempt `job`, `pipeline`, `created` | `INVALID_ARGUMENT`, `NOT_FOUND`, `FAILED_PRECONDITION`, `ALREADY_EXISTS` |
+| `GetJob` | `id` → `job` (any attempt) | `INVALID_ARGUMENT`, `NOT_FOUND` |
 | [`StreamJobLog`](#streamjoblog) | `job_id`, `offset`, `follow` → stream of `offset` + `data` | `INVALID_ARGUMENT`, `NOT_FOUND` |
 | [`ValidateConfig`](#validateconfig) | `content` → `valid`, `errors` | `INVALID_ARGUMENT` (over 256 KiB) |
 
@@ -95,11 +96,11 @@ grpcurl -plaintext -d '{
 }
 ```
 
-**Today ci-svc cannot read files from git-svc** (codeplane's `CommitService` is planned for W2–W3, assumption A-03). Until then every call answers `UNAVAILABLE`, except in development, where `GIT2_CISVC_DEV_CONFIG_DIR` serves files from a local directory ([config.md](config.md)).
+ci-svc reads the file at that commit from git-svc (`CommitService.GetBlob`, set with `GIT_SVC_GRPC_ADDR`). In development, `GIT2_CISVC_DEV_CONFIG_DIR` serves files from a local directory instead ([config.md](config.md)).
 
 ## GetPipeline and ListPipelines
 
-`GetPipeline` returns one pipeline with all its jobs, grouped by stage in run order, jobs sorted by name.
+`GetPipeline` returns one pipeline with all its jobs, grouped by stage in run order, jobs sorted by name. A retried job appears once, as its **newest attempt** (see [RetryJob](#retryjob)).
 
 `ListPipelines` returns a repository's pipelines, **newest first**, each with its jobs. `ref` filters by full ref name (`refs/heads/main`); empty means all refs. `page_size` 0 means 20.
 
@@ -121,7 +122,41 @@ Cancels every unfinished job. Waiting jobs (`CREATED`, `PENDING`) become `CANCEL
 
 **A whole pipeline** (the "Retry" button on a pipeline, git2-mcp's `retry_pipeline`): call [`TriggerPipeline`](#triggerpipeline) with the old pipeline's `repository_id`, `ref` and `commit_sha`, `trigger: PIPELINE_TRIGGER_MANUAL`, your user's `triggered_by_id`, and a **new** `idempotency_key`: a UUID made when the user clicks and reused if you retry the call. ci-svc reads `.git2-ci.yml` at that commit again and creates a new pipeline. The old pipeline stays as it was.
 
-**One job** (`RetryJob`) comes in W4 (git2-runner #16). It will add a new attempt of a finished job to the same pipeline and keep the earlier attempt's log. Until then, retry the whole pipeline.
+**One job** (the "Retry" button on a failed job): call [`RetryJob`](#retryjob).
+
+## RetryJob
+
+Runs a finished job again **as a new attempt in the same pipeline**, like GitLab's job retry. The earlier attempt keeps its status and its log.
+
+| Field | Meaning |
+|---|---|
+| `job_id` | The job to run again: the newest attempt of its name. Required |
+| `idempotency_key` | A UUID made when the user clicks "Retry", reused if you retry the call. Same rules as `TriggerPipeline`'s. Required |
+| `triggered_by_id` | The user who clicked. Optional |
+
+The response has the new attempt (`job`), its `pipeline` after the retry, and `created` (false when an earlier call with the same key made the attempt).
+
+What happens:
+- The new attempt has the same name, stage and spec, `attempt` one higher (the first run is `1`), and `retry_of_id` = the job you retried. It starts as `PENDING`.
+- Jobs of **later stages that never ran** (`SKIPPED`, or `CANCELED` before they started) get new attempts too, as `CREATED`, so the pipeline continues past the retried job. Jobs that already ran keep their result.
+- The pipeline becomes `RUNNING` (or `PENDING`) again, and [`PipelineFinished`](events.md#civ1pipelinefinished) is published **again** when it ends.
+- `GetPipeline` and `ListPipelines` show only the newest attempt of each job. `GetJob` and `StreamJobLog` still serve every attempt: follow `retry_of_id` to list earlier attempts and their logs.
+
+| Code | When |
+|---|---|
+| `INVALID_ARGUMENT` | `job_id` or `triggered_by_id` is not a UUID, or `idempotency_key` is empty, too long or has control characters |
+| `NOT_FOUND` | No job has this ID |
+| `FAILED_PRECONDITION` | The pipeline has not finished yet; or the job is not the newest attempt of its name; or the job was `SKIPPED` (retry the failed job of the earlier stage); or a job of an earlier stage did not succeed |
+| `ALREADY_EXISTS` | The `idempotency_key` was used to retry another job |
+
+```go
+resp, err := pipelines.RetryJob(ctx, &civ1.RetryJobRequest{
+	JobId: jobID, IdempotencyKey: clickID, TriggeredById: userID,
+})
+// resp.GetJob().GetAttempt() == 2, resp.GetJob().GetRetryOfId() == jobID
+```
+
+Show the button only on the newest attempt of a `FAILED`, `CANCELED` or `SUCCESS` job of a finished pipeline; ci-svc refuses the other cases anyway. dash-api checks that the user may write to the repository, as for cancel.
 
 ## StreamJobLog
 

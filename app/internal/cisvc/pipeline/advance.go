@@ -47,9 +47,11 @@ func advance(ctx context.Context, tx pgx.Tx, pipelineID uuid.UUID) (bool, error)
 		return false, nil
 	}
 
+	// Earlier attempts of retried jobs are history; only the newest
+	// attempt of each job counts.
 	rows, err := tx.Query(ctx, `
-		SELECT id, stage_index, name, status FROM ci_svc.jobs
-		WHERE pipeline_id = $1 ORDER BY stage_index, name`, pipelineID)
+		SELECT j.id, j.stage_index, j.name, j.status FROM ci_svc.jobs j
+		WHERE j.pipeline_id = $1 AND `+newestAttempt+` ORDER BY j.stage_index, j.name`, pipelineID)
 	if err != nil {
 		return false, fmt.Errorf("read jobs: %w", err)
 	}

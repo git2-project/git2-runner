@@ -16,6 +16,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -32,6 +33,10 @@ var requiredTables = []string{
 	Schema + ".runners", Schema + ".registration_tokens", Schema + ".pipelines",
 	Schema + ".jobs", Schema + ".job_log_chunks", Schema + ".secrets", Schema + ".outbox",
 }
+
+// requiredJobColumns are the ci_svc.jobs columns that later migrations
+// added (006: attempts for RetryJob).
+var requiredJobColumns = []string{"attempt", "retry_of", "idempotency_key", "triggered_by"}
 
 // pingTimeout bounds the first connection attempt at startup.
 const pingTimeout = 5 * time.Second
@@ -93,8 +98,9 @@ func isTransactionPooler(dsn string) bool {
 		strings.Contains(lower, "pooler.supabase")
 }
 
-// CheckSchema returns an error if a table ci-svc needs is missing, which
-// means the git2 repo's migrations have not been applied to this database.
+// CheckSchema returns an error if a table or column ci-svc needs is
+// missing, which means the git2 repo's migrations have not been applied to
+// this database.
 func CheckSchema(ctx context.Context, pool *pgxpool.Pool) error {
 	var missing []string
 	for _, table := range requiredTables {
@@ -104,6 +110,24 @@ func CheckSchema(ctx context.Context, pool *pgxpool.Pool) error {
 		}
 		if found == nil {
 			missing = append(missing, table)
+		}
+	}
+	if len(missing) == 0 {
+		rows, err := pool.Query(ctx, `
+			SELECT column_name::text FROM information_schema.columns
+			WHERE table_schema = $1 AND table_name = 'jobs' AND column_name = ANY($2::text[])`,
+			Schema, requiredJobColumns)
+		if err != nil {
+			return fmt.Errorf("check columns: %w", err)
+		}
+		have, err := pgx.CollectRows(rows, pgx.RowTo[string])
+		if err != nil {
+			return fmt.Errorf("check columns: %w", err)
+		}
+		for _, c := range requiredJobColumns {
+			if !slices.Contains(have, c) {
+				missing = append(missing, Schema+".jobs."+c)
+			}
 		}
 	}
 	if len(missing) > 0 {
