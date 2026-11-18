@@ -129,11 +129,22 @@ func run(args []string, log *slog.Logger) error {
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	exec, err := docker.New(ctx, cfg.Docker, log)
+	exec, err := docker.New(ctx, cfg.RunnerID, cfg.Docker, log)
 	if err != nil {
 		return err
 	}
 	defer func() { _ = exec.Close() }()
+	// Jobs that were running when this runner or its host died left their
+	// containers behind. Remove them before taking new jobs; a failure here
+	// is logged and does not stop the runner.
+	left, err := exec.RemoveLeftovers(ctx)
+	if !left.Empty() {
+		log.Info("removed what jobs left behind when this runner stopped unexpectedly",
+			slog.Any("containers", left.Containers), slog.Any("networks", left.Networks), slog.Any("volumes", left.Volumes))
+	}
+	if err != nil {
+		log.Warn("could not remove everything earlier jobs left behind", slog.String("err", err.Error()))
+	}
 	conn, err := runner.Dial(cfg.URL, cfg.Token)
 	if err != nil {
 		return err

@@ -89,6 +89,15 @@ docker run -d --name git2-runner --restart unless-stopped   -v git2-runner:/etc/
 
 Instead of the socket you can set `DOCKER_HOST` to a Docker-in-Docker daemon. The runner never bind-mounts host paths into jobs, so both work.
 
+### After a crash
+
+Each job runs in a container, a bridge network and a volume, all named `git2-job-<job_id>`. They are removed when the job ends. If the runner or its host dies mid-job, they stay on the Docker daemon, and the container may still be running.
+
+- **On ci-svc:** the job's lease runs out, and it fails as `runner_lost` (`JOB_FAILURE_REASON_RUNNER_SYSTEM_FAILURE` is for failures the runner reports itself). Retry it with `RetryJob`.
+- **On the build host:** everything a job creates carries the labels `io.git2.job-id` and `io.git2.runner-id`. When the same runner starts again (`git2-runner run` with the same config), it first removes every container, network and volume with its own runner ID, and logs their names. Another runner's jobs on the same daemon are never touched.
+- **Never run two runners with the same config on one daemon.** Each would remove the other's running jobs at startup. Register a second runner instead.
+- Jobs started by a runner older than 18 Nov carry only `io.git2.job-id`. Remove those by hand: `docker ps -aq --filter label=io.git2.job-id`, and the same for `docker network ls` and `docker volume ls`.
+
 ## RunnerService (the runner protocol)
 
 On ci-svc's **runner port**. Every call except `RegisterRunner` carries `authorization: Bearer <runner token>`. Proto: [`runner.proto`](../../app/proto/ci/v1/runner.proto).
