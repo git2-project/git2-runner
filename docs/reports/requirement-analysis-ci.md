@@ -34,7 +34,7 @@ flowchart LR
 | FR | What the analysis says | Realised by | State (15 Nov) |
 |---|---|---|---|
 | FR-50 | `.git2-ci.yml` v0: stages, jobs, image, script, variables, tags, timeout; a published JSON schema | `ciyaml` parser and schema | Built |
-| FR-51 | One pipeline **per created or updated branch or tag** of a push, not per push. A redelivered event creates none (idempotency key `"<event_id>:<ref>"`) | `TriggerPipeline`, `ci_svc.inbox` (ADR 0010) | Trigger built; push path #20 (W4) |
+| FR-51 | One pipeline **per created or updated branch or tag** of a push, not per push. A redelivered event creates none (idempotency key `"<event_id>:<ref>"`) | `TriggerPipeline`, `ci_svc.inbox` (ADR 0010) | Built; push path tested end to end on 18 Nov (#20) |
 | FR-52 | An invalid file still creates a pipeline, `FAILED`, with the errors in `error_message` | `TriggerPipeline` | Built |
 | FR-53 | Stages run in order, jobs of a stage in parallel; a failure skips later stages | `advance()` in ci-svc | Built |
 | FR-54 | A job runs once, on a runner whose labels cover its tags, and survives Redis and ci-svc restarts | Postgres queue (`FOR UPDATE SKIP LOCKED`), 60 s leases, reaper | Built |

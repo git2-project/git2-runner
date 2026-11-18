@@ -2,8 +2,9 @@
 // mapping from domain errors to gRPC status codes.
 //
 // ci-svc serves two ports (plan §3.1):
-//   - the internal port, with PipelineService, RunnerAdminService and
-//     SecretService, reachable only inside the instance network;
+//   - the internal port, with PipelineService, RunnerAdminService,
+//     SecretService and events.v1.EventSink (ADR 0010), reachable only
+//     inside the instance network;
 //   - the runner port, with RunnerService only, reachable from build hosts.
 //     Every call except RegisterRunner needs a runner token.
 //
@@ -22,7 +23,10 @@ import (
 	healthpb "google.golang.org/grpc/health/grpc_health_v1"
 	"google.golang.org/grpc/reflection"
 
+	eventsv1 "github.com/git2-project/git2-codeplane/gen/go/events/v1"
+
 	civ1 "github.com/git2-project/git2-runner/app/gen/go/ci/v1"
+	"github.com/git2-project/git2-runner/app/internal/cisvc/inbox"
 	"github.com/git2-project/git2-runner/app/internal/cisvc/pipeline"
 	"github.com/git2-project/git2-runner/app/internal/cisvc/ratelimit"
 	"github.com/git2-project/git2-runner/app/internal/cisvc/runners"
@@ -34,6 +38,8 @@ type Deps struct {
 	Pipelines *pipeline.Service
 	Runners   *runners.Service
 	Secrets   *secrets.Service
+	// Inbox stores the events other services deliver to EventSink.
+	Inbox *inbox.Service
 	// RegisterLimit limits RegisterRunner attempts per client address. May
 	// be nil.
 	RegisterLimit *ratelimit.Limiter
@@ -57,13 +63,15 @@ func NewInternal(d Deps, reflect bool) *Server {
 	civ1.RegisterPipelineServiceServer(gs, &pipelineServer{d: d})
 	civ1.RegisterRunnerAdminServiceServer(gs, &adminServer{d: d})
 	civ1.RegisterSecretServiceServer(gs, &secretServer{d: d})
+	eventsv1.RegisterEventSinkServer(gs, &eventSinkServer{d: d})
 	if reflect {
 		reflection.Register(gs)
 	}
 	return newServer(gs,
 		civ1.PipelineService_ServiceDesc.ServiceName,
 		civ1.RunnerAdminService_ServiceDesc.ServiceName,
-		civ1.SecretService_ServiceDesc.ServiceName)
+		civ1.SecretService_ServiceDesc.ServiceName,
+		eventsv1.EventSink_ServiceDesc.ServiceName)
 }
 
 // NewRunner builds the runner server. With tlsConfig nil it serves

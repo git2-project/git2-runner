@@ -5,6 +5,7 @@ go 1.26.0
 require (
 	github.com/alicebob/miniredis/v2 v2.40.0
 	github.com/containerd/errdefs v1.0.0
+	github.com/git2-project/git2-codeplane v0.3.0
 	github.com/google/uuid v1.6.0
 	github.com/jackc/pgx/v5 v5.11.0
 	github.com/moby/moby/api v1.56.1
@@ -24,7 +25,6 @@ require (
 	github.com/docker/go-connections v0.8.2 // indirect
 	github.com/docker/go-units v0.5.0 // indirect
 	github.com/felixge/httpsnoop v1.1.0 // indirect
-	github.com/git2-project/git2-codeplane v0.2.0 // indirect
 	github.com/go-logr/logr v1.4.3 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/jackc/pgpassfile v1.0.0 // indirect
