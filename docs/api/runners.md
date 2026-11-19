@@ -96,7 +96,17 @@ Each job runs in a container, a bridge network and a volume, all named `git2-job
 - **On ci-svc:** the job's lease runs out, and the job fails with `JOB_FAILURE_REASON_RUNNER_LOST`. Retry it with `RetryJob`.
 - **On the build host:** everything a job creates carries the labels `io.git2.job-id` and `io.git2.runner-id`. When the same runner starts again (`git2-runner run` with the same config), it first removes every container, network and volume with its own runner ID, and logs their names. Another runner's jobs on the same daemon are never touched.
 - **Never run two runners with the same config on one daemon.** Each would remove the other's running jobs at startup. Register a second runner instead.
-- Jobs started by a runner older than 18 Nov carry only `io.git2.job-id`. Remove those by hand: `docker ps -aq --filter label=io.git2.job-id`, and the same for `docker network ls` and `docker volume ls`.
+- **What a runner cannot remove by itself:**
+  - jobs started by a runner older than 18 Nov, which carry only `io.git2.job-id`;
+  - jobs of a runner that was registered again (`git2-runner register -force` writes a new `runner_id`, so leftovers keep the old one).
+
+  Remove them by hand. **Do not** remove everything with `io.git2.job-id`: on a shared daemon that also matches other runners' running jobs. List them with their runner ID first:
+
+  ```sh
+  docker ps -a --filter label=io.git2.job-id --format '{{.ID}} {{.Names}} {{.Label "io.git2.runner-id"}}'
+  ```
+
+  Remove only the rows with no runner ID or with the old one (`--filter label=io.git2.runner-id=<old id>`). The same `--format` works for `docker network ls` and `docker volume ls`. If unsure, stop every runner on that daemon first.
 
 ## RunnerService (the runner protocol)
 
