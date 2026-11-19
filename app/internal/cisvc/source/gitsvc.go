@@ -24,12 +24,17 @@ const DefaultGitSvcTimeout = 10 * time.Second
 type InvalidFileError struct {
 	// Reason says what is wrong, for the pipeline's error message.
 	Reason string
+	// CommitSHA is the commit the file was found in, if known (see
+	// File.CommitSHA).
+	CommitSHA string
 }
 
 func (e *InvalidFileError) Error() string { return ciyaml.FileName + ": " + e.Reason }
 
 // GitSvc reads .git2-ci.yml from git-svc with CommitService.GetBlob at the
-// pushed commit (git2-codeplane v0.2.0, assumption A-03).
+// pushed commit (git2-codeplane v0.2.0, assumption A-03). git-svc resolves
+// the SHA with ^{commit}, so an annotated tag object works too, and
+// GetBlobResponse.commit_sha names the commit it peeled to.
 type GitSvc struct {
 	Client gitv1.CommitServiceClient
 	// Timeout bounds one call; 0 means DefaultGitSvcTimeout.
@@ -37,7 +42,7 @@ type GitSvc struct {
 }
 
 // ReadCIFile implements Source.
-func (g GitSvc) ReadCIFile(ctx context.Context, repositoryID uuid.UUID, commitSHA string) ([]byte, error) {
+func (g GitSvc) ReadCIFile(ctx context.Context, repositoryID uuid.UUID, commitSHA string) (File, error) {
 	timeout := g.Timeout
 	if timeout <= 0 {
 		timeout = DefaultGitSvcTimeout
@@ -55,24 +60,28 @@ func (g GitSvc) ReadCIFile(ctx context.Context, repositoryID uuid.UUID, commitSH
 	case codes.NotFound:
 		// The repository, the commit or the file does not exist: either
 		// way there is nothing to run.
-		return nil, ErrNoCIFile
+		return File{}, ErrNoCIFile
 	case codes.InvalidArgument:
 		// The ID and the SHA are valid, so git-svc refused the path: a
 		// directory or a submodule called .git2-ci.yml.
-		return nil, &InvalidFileError{Reason: "it is not a regular file"}
+		return File{}, &InvalidFileError{Reason: "it is not a regular file"}
 	default:
-		return nil, fmt.Errorf("git-svc GetBlob: %w", err)
+		return File{}, fmt.Errorf("git-svc GetBlob: %w", err)
 	}
 
+	commit := resp.GetCommitSha()
+	invalid := func(reason string) (File, error) {
+		return File{}, &InvalidFileError{Reason: reason, CommitSHA: commit}
+	}
 	switch {
 	case resp.GetType() == gitv1.TreeEntryType_TREE_ENTRY_TYPE_SYMLINK:
-		return nil, &InvalidFileError{Reason: "it is a symbolic link"}
+		return invalid("it is a symbolic link")
 	case resp.GetLfs():
-		return nil, &InvalidFileError{Reason: "it is stored in Git LFS"}
+		return invalid("it is stored in Git LFS")
 	case resp.GetBinary():
-		return nil, &InvalidFileError{Reason: "it is a binary file"}
+		return invalid("it is a binary file")
 	case resp.GetTruncated() || resp.GetSize() > ciyaml.MaxFileSize:
-		return nil, &InvalidFileError{Reason: fmt.Sprintf("the file is larger than %d KiB", ciyaml.MaxFileSize>>10)}
+		return invalid(fmt.Sprintf("the file is larger than %d KiB", ciyaml.MaxFileSize>>10))
 	}
-	return resp.GetContent(), nil
+	return File{Content: resp.GetContent(), CommitSHA: commit}, nil
 }

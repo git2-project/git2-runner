@@ -284,3 +284,49 @@ func TestEventSinkRefusesBadEvents(t *testing.T) {
 		e.deliver(t, req)
 	})
 }
+
+// TestAnnotatedTagRecordsTheCommit: a push of an annotated tag carries the
+// tag object's SHA, but the pipeline must record the commit it points to,
+// and a redelivery that names the tag object must still find it.
+func TestAnnotatedTagRecordsTheCommit(t *testing.T) {
+	forEachMode(t, func(t *testing.T, e *env) {
+		ctx := t.Context()
+		repo := e.newRepo(t, threeStages)
+		tagObject, commit := sha(), sha()
+		e.src.setTag(tagObject, commit)
+		const ref = "refs/tags/v2.0.0"
+		ev := pushEvent(t, repo, "", &gitv1.RefUpdate{Ref: ref, OldSha: zeroSHA, NewSha: tagObject})
+		e.deliver(t, ev)
+		e.processDue(t)
+
+		var id, got, created string
+		err := e.pool.QueryRow(ctx, `
+			SELECT p.id::text, p.commit_sha, o.payload->>'commitSha'
+			FROM ci_svc.pipelines p JOIN ci_svc.outbox o ON o.aggregate_id = p.id AND o.event_type = 'ci.v1.PipelineCreated'
+			WHERE p.repository_id = $1`, repo).Scan(&id, &got, &created)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got != commit || created != commit {
+			t.Fatalf("pipeline commit %s, PipelineCreated commit %s; want the peeled commit %s", got, created, commit)
+		}
+
+		// A redelivery names the tag object again: same pipeline, not a conflict.
+		key := ev.GetEventId() + ":" + ref
+		resp, err := e.ps.TriggerPipeline(ctx, &civ1.TriggerPipelineRequest{
+			RepositoryId: repo.String(), Ref: ref, CommitSha: tagObject,
+			Trigger: civ1.PipelineTrigger_PIPELINE_TRIGGER_PUSH, IdempotencyKey: key,
+		})
+		if err != nil || resp.GetCreated() || resp.GetPipeline().GetId() != id || resp.GetPipeline().GetCommitSha() != commit {
+			t.Fatalf("redelivery: %v, %+v", err, resp)
+		}
+		// The same key for a tag object of another commit is still a conflict.
+		otherTag := sha()
+		e.src.setTag(otherTag, sha())
+		_, err = e.ps.TriggerPipeline(ctx, &civ1.TriggerPipelineRequest{
+			RepositoryId: repo.String(), Ref: ref, CommitSha: otherTag,
+			Trigger: civ1.PipelineTrigger_PIPELINE_TRIGGER_PUSH, IdempotencyKey: key,
+		})
+		wantCode(t, "same key, another commit", err, codes.AlreadyExists)
+	})
+}

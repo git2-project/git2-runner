@@ -42,6 +42,7 @@ type fakeSource struct {
 	mu    sync.Mutex
 	files map[uuid.UUID][]byte
 	errs  map[uuid.UUID]error
+	tags  map[string]string // annotated tag object → its commit
 }
 
 func (f *fakeSource) setErr(repo uuid.UUID, err error) {
@@ -59,16 +60,31 @@ func (f *fakeSource) set(repo uuid.UUID, content string) {
 	f.files[repo] = []byte(content)
 }
 
-func (f *fakeSource) ReadCIFile(_ context.Context, repo uuid.UUID, _ string) ([]byte, error) {
+// setTag makes tagObject an annotated tag object that peels to commit, as
+// git-svc reports it in GetBlobResponse.commit_sha.
+func (f *fakeSource) setTag(tagObject, commit string) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.tags == nil {
+		f.tags = map[string]string{}
+	}
+	f.tags[tagObject] = commit
+}
+
+func (f *fakeSource) ReadCIFile(_ context.Context, repo uuid.UUID, sha string) (source.File, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	if err, ok := f.errs[repo]; ok {
-		return nil, err
+		return source.File{}, err
+	}
+	commit := sha
+	if c, ok := f.tags[sha]; ok {
+		commit = c
 	}
 	if b, ok := f.files[repo]; ok {
-		return b, nil
+		return source.File{Content: b, CommitSHA: commit}, nil
 	}
-	return nil, source.ErrNoCIFile
+	return source.File{}, source.ErrNoCIFile
 }
 
 // env is ci-svc wired as main does, on in-memory listeners.
