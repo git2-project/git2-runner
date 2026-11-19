@@ -100,7 +100,7 @@ func (s *Service) Trigger(ctx context.Context, in TriggerInput) (Pipeline, bool,
 		return p, false, err
 	}
 
-	content, err := s.source.ReadCIFile(ctx, args.repositoryID, in.CommitSHA)
+	file, err := s.source.ReadCIFile(ctx, args.repositoryID, in.CommitSHA)
 	var invalid *source.InvalidFileError
 	switch {
 	case errors.Is(err, source.ErrNoCIFile):
@@ -112,12 +112,21 @@ func (s *Service) Trigger(ctx context.Context, in TriggerInput) (Pipeline, bool,
 		s.log.WarnContext(ctx, "read CI file", "err", err.Error())
 		return Pipeline{}, false, apierr.New(apierr.Unavailable, "could not read "+ciyaml.FileName+" from git-svc; retry later")
 	}
+	// The pipeline records the commit, not an annotated tag object: a push
+	// of such a tag carries the tag object's SHA, which git-svc peels.
+	commit := in.CommitSHA
+	switch {
+	case invalid != nil && shaRE.MatchString(invalid.CommitSHA):
+		commit = invalid.CommitSHA
+	case invalid == nil && shaRE.MatchString(file.CommitSHA):
+		commit = file.CommitSHA
+	}
 	var cfg *ciyaml.Config
 	var parseErr error
 	if invalid != nil {
 		parseErr = ciyaml.Errors{{Message: invalid.Reason}}
 	} else {
-		cfg, parseErr = ciyaml.Parse(content)
+		cfg, parseErr = ciyaml.Parse(file.Content)
 	}
 
 	id := uuid.Must(uuid.NewV7())
@@ -136,7 +145,7 @@ func (s *Service) Trigger(ctx context.Context, in TriggerInput) (Pipeline, bool,
 			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, CASE WHEN $8 = 'failed' THEN now() END)
 			ON CONFLICT (idempotency_key) DO NOTHING
 			RETURNING created_at, finished_at`,
-			id, args.repositoryID, in.Ref, in.CommitSHA, string(in.Trigger), args.triggeredBy,
+			id, args.repositoryID, in.Ref, commit, string(in.Trigger), args.triggeredBy,
 			in.IdempotencyKey, string(status), errMsg).Scan(&createdAt, &finishedAt)
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil // a concurrent call with the same key won
@@ -148,14 +157,14 @@ func (s *Service) Trigger(ctx context.Context, in TriggerInput) (Pipeline, bool,
 
 		if err := outbox.Write(ctx, tx, outbox.AggregatePipeline, id, &civ1.PipelineCreated{
 			PipelineId: id.String(), RepositoryId: args.repositoryID.String(), Ref: in.Ref,
-			CommitSha: in.CommitSHA, Trigger: in.Trigger.Proto(), OccurredAt: timestamppb.New(createdAt),
+			CommitSha: commit, Trigger: in.Trigger.Proto(), OccurredAt: timestamppb.New(createdAt),
 		}); err != nil {
 			return err
 		}
 		if parseErr != nil {
 			return outbox.Write(ctx, tx, outbox.AggregatePipeline, id, &civ1.PipelineFinished{
 				PipelineId: id.String(), RepositoryId: args.repositoryID.String(), Ref: in.Ref,
-				CommitSha: in.CommitSHA, Status: StatusFailed.Proto(), OccurredAt: timestamppb.New(*finishedAt),
+				CommitSha: commit, Status: StatusFailed.Proto(), OccurredAt: timestamppb.New(*finishedAt),
 			})
 		}
 		if err := insertJobs(ctx, tx, id, cfg); err != nil {
@@ -193,11 +202,44 @@ func (s *Service) existing(ctx context.Context, in TriggerInput, args triggerArg
 	if err != nil {
 		return Pipeline{}, false, err
 	}
-	if p.RepositoryID != args.repositoryID || p.Ref != in.Ref || p.CommitSHA != in.CommitSHA {
-		return Pipeline{}, true, apierr.New(apierr.AlreadyExists,
-			"idempotency_key was already used for another repository, ref or commit")
+	reused := apierr.New(apierr.AlreadyExists, "idempotency_key was already used for another repository, ref or commit")
+	if p.RepositoryID != args.repositoryID || p.Ref != in.Ref {
+		return Pipeline{}, true, reused
+	}
+	if p.CommitSHA != in.CommitSHA {
+		// A redelivered push of an annotated tag names the tag object, while
+		// the pipeline recorded the commit it points to. Peel it to compare;
+		// a branch always names a commit, so it needs no lookup.
+		if !strings.HasPrefix(in.Ref, "refs/tags/") {
+			return Pipeline{}, true, reused
+		}
+		peeled, err := s.peel(ctx, args.repositoryID, in.CommitSHA)
+		if err != nil {
+			return Pipeline{}, true, err
+		}
+		if peeled != p.CommitSHA {
+			return Pipeline{}, true, reused
+		}
 	}
 	return p, true, nil
+}
+
+// peel returns the commit git-svc reads for sha: sha itself for a commit,
+// the commit it points to for an annotated tag object. It is "" when
+// git-svc no longer has the commit or the file.
+func (s *Service) peel(ctx context.Context, repositoryID uuid.UUID, sha string) (string, error) {
+	file, err := s.source.ReadCIFile(ctx, repositoryID, sha)
+	var invalid *source.InvalidFileError
+	switch {
+	case err == nil:
+		return file.CommitSHA, nil
+	case errors.As(err, &invalid):
+		return invalid.CommitSHA, nil
+	case errors.Is(err, source.ErrNoCIFile):
+		return "", nil
+	}
+	s.log.WarnContext(ctx, "read CI file", "err", err.Error())
+	return "", apierr.New(apierr.Unavailable, "could not read "+ciyaml.FileName+" from git-svc; retry later")
 }
 
 // configErrorMessage turns parse errors into a pipeline's error_message.

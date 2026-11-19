@@ -49,14 +49,14 @@ Starts a pipeline for one commit. **Idempotent on `idempotency_key`**: the same 
 |---|---|
 | `repository_id` | git-svc repository ID. Required |
 | `ref` | `refs/heads/<branch>` or `refs/tags/<tag>`, at most 255 bytes. Required |
-| `commit_sha` | 40 or 64 lowercase hex characters. Required |
+| `commit_sha` | 40 or 64 lowercase hex characters. Required. An annotated tag object is accepted: the pipeline records the commit it points to |
 | `trigger` | `PIPELINE_TRIGGER_PUSH` or `PIPELINE_TRIGGER_MANUAL`. Required |
 | `triggered_by_id` | auth-svc user ID, or empty |
 | `idempotency_key` | 1–512 bytes of UTF-8 text without control characters, so `"<event_id>:<ref>"` fits every valid ref (refs may be non-ASCII, up to 255 bytes). Required. For a push: `"<event_id>:<ref>"`. For a button: a UUID made when the user clicks, reused on retry |
 
 **For pushes, nobody calls `TriggerPipeline`.** codeplane's relay delivers `git.v1.RepositoryPushed` to ci-svc's `events.v1.EventSink` ([ADR 0010](../decisions/0010-events-delivered-by-eventsink-push.md)), and ci-svc starts the pipelines itself.
 - `EventSink.Deliver` only stores the event in `ci_svc.inbox` and answers `OK`; a repeat of the same `event_id` changes nothing. It answers `INVALID_ARGUMENT` for a type other than `git.v1.RepositoryPushed`, or a payload that is not one.
-- A worker then runs the same trigger once per entry of `ref_updates` that is a branch or tag (`refs/heads/*`, `refs/tags/*`) whose `new_sha` is not all zeros, with `commit_sha = new_sha`, `triggered_by_id = pusher_id` and the idempotency key `"<event_id>:<ref>"`. The pipeline's `trigger` is `PIPELINE_TRIGGER_PUSH`.
+- A worker then runs the same trigger once per entry of `ref_updates` that is a branch or tag (`refs/heads/*`, `refs/tags/*`) whose `new_sha` is not all zeros, with `commit_sha = new_sha` (an annotated tag's `new_sha` is its tag object; the pipeline records the commit it points to), `triggered_by_id = pusher_id` and the idempotency key `"<event_id>:<ref>"`. The pipeline's `trigger` is `PIPELINE_TRIGGER_PUSH`.
 - Deleted refs, `refs/notes/*`, other namespaces and refs over 255 bytes start nothing.
 - A commit without `.git2-ci.yml` starts nothing.
 - **A push is never lost on our side.** If git-svc or the database cannot be reached, the event stays in the inbox and is tried again after 5 s, 10 s, 20 s and so on, at most every 5 minutes, until it works. Handled events are deleted after 7 days; the pipelines keep their keys, so even a late redelivery starts nothing twice.

@@ -56,6 +56,7 @@ func dialFake(t *testing.T, f *fakeCommits) gitv1.CommitServiceClient {
 
 func TestGitSvcReadCIFile(t *testing.T) {
 	const sha = "9fceb02d0ae598e95dc970b74767f19372d61af8"
+	const peeled = "150af33f6f2b5c8a1d4e7c9b0a3d6f8e1c2b4a59" // the commit an annotated tag points to
 	file := []byte("build:\n  image: alpine\n  script: [make]\n")
 	ok := func(r *gitv1.GetBlobResponse) func(context.Context) (*gitv1.GetBlobResponse, error) {
 		return func(context.Context) (*gitv1.GetBlobResponse, error) { return r, nil }
@@ -71,13 +72,15 @@ func TestGitSvcReadCIFile(t *testing.T) {
 		want    []byte
 		noFile  bool   // ErrNoCIFile
 		invalid string // the InvalidFileError reason
+		commit  string // the commit reported back; empty means sha
 	}{
-		{name: "file", answer: ok(&gitv1.GetBlobResponse{Type: regular, Size: int64(len(file)), Content: file}), want: file},
+		{name: "file", answer: ok(&gitv1.GetBlobResponse{CommitSha: sha, Type: regular, Size: int64(len(file)), Content: file}), want: file},
+		{name: "annotated tag", answer: ok(&gitv1.GetBlobResponse{CommitSha: peeled, Type: regular, Size: int64(len(file)), Content: file}), want: file, commit: peeled},
 		{name: "no file at this commit", answer: fail(codes.NotFound, "path not found"), noFile: true},
 		{name: "repository deleted", answer: fail(codes.NotFound, "repository not found"), noFile: true},
 		{name: "a directory", answer: fail(codes.InvalidArgument, "path is a directory"), invalid: "it is not a regular file"},
 		{name: "symbolic link", answer: ok(&gitv1.GetBlobResponse{Type: gitv1.TreeEntryType_TREE_ENTRY_TYPE_SYMLINK, Content: []byte("other.yml")}), invalid: "it is a symbolic link"},
-		{name: "LFS pointer", answer: ok(&gitv1.GetBlobResponse{Type: regular, Lfs: true, Content: []byte("version https://git-lfs.github.com/spec/v1\n")}), invalid: "it is stored in Git LFS"},
+		{name: "LFS pointer", commit: peeled, answer: ok(&gitv1.GetBlobResponse{CommitSha: peeled, Type: regular, Lfs: true, Content: []byte("version https://git-lfs.github.com/spec/v1\n")}), invalid: "it is stored in Git LFS"},
 		{name: "binary", answer: ok(&gitv1.GetBlobResponse{Type: regular, Binary: true, Size: 100}), invalid: "it is a binary file"},
 		{name: "cut at 1 MiB", answer: ok(&gitv1.GetBlobResponse{Type: regular, Truncated: true, Size: 2 << 20, Content: make([]byte, 1<<20)}), invalid: "the file is larger than 256 KiB"},
 		{name: "over our limit", answer: ok(&gitv1.GetBlobResponse{Type: regular, Size: ciyaml.MaxFileSize + 1, Content: make([]byte, ciyaml.MaxFileSize+1)}), invalid: "the file is larger than 256 KiB"},
@@ -104,9 +107,16 @@ func TestGitSvcReadCIFile(t *testing.T) {
 				if !errors.As(err, &invalid) || invalid.Reason != tc.invalid {
 					t.Errorf("err = %v, want InvalidFileError %q", err, tc.invalid)
 				}
+				if tc.commit != "" && invalid != nil && invalid.CommitSHA != tc.commit {
+					t.Errorf("InvalidFileError.CommitSHA = %q, want %q", invalid.CommitSHA, tc.commit)
+				}
 			default:
-				if err != nil || string(got) != string(tc.want) {
-					t.Errorf("got %q, %v; want the file", got, err)
+				want := tc.commit
+				if want == "" {
+					want = sha
+				}
+				if err != nil || string(got.Content) != string(tc.want) || got.CommitSHA != want {
+					t.Errorf("got %q at %q, %v; want the file at %s", got.Content, got.CommitSHA, err, want)
 				}
 			}
 		})
