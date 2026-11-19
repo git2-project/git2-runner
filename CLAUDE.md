@@ -9,7 +9,7 @@ For architecture work, read `docs/design/plan.md` (the plan), `docs/decisions/` 
 - **PRs only.** Never commit to `main`. Work on a branch (`feat/…`, `fix/…`, `docs/…`, `chore/…`). Don't push, open PRs or issues, or merge unless asked. Every PR gets one human review.
 - **No migrations at runtime, and their source of truth is git2** (ADR 0009).
   - The schema lives in the git2 repo: `migrations/NNN_ci_<what>.sql`, first line a `-- ` comment, idempotent statements, no Down part. Our schema is `ci_svc`.
-  - Our files so far: `003_ci_pipelines.sql` and `006_ci_inbox_and_attempts.sql` (004 and 005 are auth-svc's). Take the next free number in git2's `migrations/`.
+  - Our files so far: `003_ci_pipelines.sql`, `006_ci_inbox_and_attempts.sql` and `008_ci_runner_health.sql` (004, 005 and 007 are auth-svc's). Take the next free number in git2's `migrations/`, and check git2's open PRs too.
   - This repo keeps a byte-identical copy in `migrations/` at the repo root. Only tests and the devcontainer's test database read it. Change both files together, in a git2 PR and a PR here.
   - ci-svc never changes the schema; it checks its tables at startup. Never edit an applied migration or change the shared DB by hand.
 - **A doc with every change.** If anyone outside this repo can notice a change (proto, event, config, error, limit, behaviour), the same PR updates `docs/api/`, adds a version note and adds a line to `docs/version_notes/overview.md`. The rules are in `docs/CLAUDE.md`.

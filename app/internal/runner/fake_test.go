@@ -76,6 +76,8 @@ type fakeCI struct {
 
 	mu        sync.Mutex
 	requests  int
+	healths   []*civ1.RunnerHealth   // the health sent with each RequestJob
+	samples   []*civ1.ContainerStats // the sample sent with each heartbeat
 	beats     int
 	finals    []finalCall
 	appends   []appendCall
@@ -104,12 +106,13 @@ func (f *fakeCI) RegisterRunner(context.Context, *civ1.RegisterRunnerRequest, ..
 	return nil, status.Error(codes.Unimplemented, "not in the fake")
 }
 
-func (f *fakeCI) RequestJob(ctx context.Context, _ *civ1.RequestJobRequest, _ ...grpc.CallOption) (*civ1.RequestJobResponse, error) {
+func (f *fakeCI) RequestJob(ctx context.Context, in *civ1.RequestJobRequest, _ ...grpc.CallOption) (*civ1.RequestJobResponse, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, status.FromContextError(err).Err()
 	}
 	f.mu.Lock()
 	f.requests++
+	f.healths = append(f.healths, in.GetHealth())
 	n := f.requests
 	f.mu.Unlock()
 	if f.requestJob != nil {
@@ -127,6 +130,7 @@ func (f *fakeCI) UpdateJob(ctx context.Context, in *civ1.UpdateJobRequest, _ ...
 	defer f.mu.Unlock()
 	if in.GetStatus() == civ1.JobStatus_JOB_STATUS_RUNNING {
 		f.beats++
+		f.samples = append(f.samples, in.GetContainer())
 		if f.heartbeat != nil {
 			return f.heartbeat(f.beats)
 		}

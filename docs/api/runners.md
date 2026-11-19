@@ -2,7 +2,7 @@
 
 A runner (`git2-runner`) is the program that runs jobs on a build host. It connects out to ci-svc's runner port, so it needs only network access to the instance. Each job runs in its own Docker container.
 
-- **Console (Beste):** [`RunnerAdminService`](#runneradminservice-for-the-console), to show runners and add, pause and delete them.
+- **Console (Beste):** [`RunnerAdminService`](#runneradminservice-for-the-console), to show runners and add, pause and delete them, and to [monitor](#monitoring-for-the-console) runners, their Docker hosts and the running job containers.
 - **Deploy (Ceyda):** [installing a runner](#installing-a-runner).
 - **Nobody outside this repo** calls [`RunnerService`](#runnerservice-the-runner-protocol); it is documented for completeness.
 
@@ -17,8 +17,10 @@ On ci-svc's **internal port**. admin-api calls it and **checks that the user is 
 | `GetRunner` | `id` → `runner` | `INVALID_ARGUMENT`, `NOT_FOUND` |
 | `UpdateRunner` | `id`, optional `paused`, optional `description` → `runner` | `INVALID_ARGUMENT`, `NOT_FOUND` |
 | `DeleteRunner` | `id` → empty | `INVALID_ARGUMENT`, `NOT_FOUND` |
+| `ListRunningJobs` | optional `runner_id`, `page_size`, `page_token` → `jobs` (oldest start first), `next_page_token` | `INVALID_ARGUMENT` |
+| `GetOverview` | empty → counts of runners, jobs and the last day's pipelines | — |
 
-**`Runner`**: `id`, `name` (host name, from the runner), `description` (admin's note), `labels`, `executor` (`docker`), `version`, `platform` (`linux/amd64`), `status`, `paused`, `last_seen_at`, `created_at`, `updated_at`.
+**`Runner`**: `id`, `name` (host name, from the runner), `description` (admin's note), `labels`, `executor` (`docker`), `version`, `platform` (`linux/amd64`), `status`, `paused`, `last_seen_at`, `created_at`, `updated_at`, `health` ([below](#monitoring-for-the-console)).
 
 | `status` | Meaning |
 |---|---|
@@ -43,6 +45,56 @@ grpcurl -plaintext -d '{"description": "build-01", "expires_in": "3600s"}' \
 ```
 
 Tokens start with `g2rt_` (registration) or `g2r_` (runner), so a leaked one is easy to recognise.
+
+### Monitoring (for the console)
+
+Runners check their build host and sample their job containers, and ci-svc keeps the latest report. Nothing is pushed: the console polls. Every 15–30 s is plenty, because that is how often runners report.
+
+```
+build host ── RequestJob + health (≤ 25 s) ──► ci-svc ──► ci_svc.runners.health
+           ── UpdateJob RUNNING + container (15 s) ──► ci_svc.jobs.container_stats
+console ◄── admin-api ◄── GetRunner / ListRunningJobs / GetOverview
+```
+
+**`Runner.health`** (`RunnerHealth`): the runner's latest check. Unset until it sends one, which runners older than 19 Nov 2026 never do.
+
+| Field | Meaning | Show it as |
+|---|---|---|
+| `docker_reachable` | The runner's Docker daemon answered | **Red "Docker down"** when false on an online runner: it takes jobs and fails them |
+| `docker_version`, `docker_platform` | e.g. `29.0.1`, `linux/amd64` | text |
+| `cpus`, `memory_bytes` | the daemon's host | "4 CPU · 16 GiB" |
+| `job_containers` | this runner's job containers on the daemon | **Warning** when it is above 1, or 1 while the runner runs nothing: leftovers ([After a crash](#after-a-crash)) |
+| `reported_at` | when ci-svc got it | "checked 12 s ago"; grey out the card when it is older than 2 minutes |
+
+**`ListRunningJobs`**: what runs where. Each `RunningJob` has the job (`job_id`, `name`, `stage`, `attempt`), its pipeline (`pipeline_id`, `repository_id`, `ref`, `commit_sha`), the runner (`runner_id`, `runner_name`), `started_at` and `container` (`ContainerStats`):
+
+| `container` field | Meaning |
+|---|---|
+| `cpu_percent` | like `docker stats`: 100 = one full CPU, so 150 on a 2-CPU limit is 75 % of it |
+| `memory_bytes` / `memory_limit_bytes` | in use (without page cache) / the limit; a bar, red near the limit (the job is killed there) |
+| `pids` / `pids_limit` | processes and threads / the limit |
+| `reported_at` | when ci-svc got it; unset `container` until the first heartbeat, about 15 s after the start |
+
+**`GetOverview`**: the dashboard's numbers.
+
+| Field | Meaning |
+|---|---|
+| `runners_online`, `runners_offline`, `runners_paused` | as `Runner.status` |
+| `runners_docker_unreachable` | online runners whose Docker is down: look at these first |
+| `jobs_pending`, `jobs_running` | the queue and what runs now |
+| `oldest_pending_since` | when the longest-waiting job was queued. A long wait means no online runner has its tags |
+| `pipelines_last_24h` | `pending`, `running`, `success`, `failed`, `canceled` of the pipelines created in the last 24 h |
+
+```sh
+grpcurl -plaintext -d '{"runner_id": "<runner-id>"}' localhost:9090 ci.v1.RunnerAdminService/ListRunningJobs
+# {"jobs": [{"jobId": "…", "name": "build", "stage": "build", "attempt": 1, "runnerName": "build-01",
+#   "startedAt": "2026-11-19T10:02:11Z",
+#   "container": {"cpuPercent": 37.3, "memoryBytes": "67108864", "memoryLimitBytes": "2147483648",
+#                 "pids": "3", "pidsLimit": "1024", "reportedAt": "2026-11-19T10:02:41Z"}}]}
+grpcurl -plaintext localhost:9090 ci.v1.RunnerAdminService/GetOverview
+```
+
+As with the rest of this service, admin-api checks that the user is an instance admin first. The reports contain no secrets: only versions, counts and sizes.
 
 ## Installing a runner
 
@@ -115,6 +167,6 @@ On ci-svc's **runner port**. Every call except `RegisterRunner` carries `authori
 | RPC | What it does |
 |---|---|
 | `RegisterRunner` | One-time registration token + name, labels, executor, version, platform → `runner_id`, `runner_token`. `UNAUTHENTICATED` for a bad, used or expired token; `RESOURCE_EXHAUSTED` after 10 attempts a minute from one address |
-| `RequestJob` | Long poll, up to about 25 s: returns a `JobAssignment` (image, script, variables with secrets marked `masked`, timeout) or nothing |
-| `UpdateJob` | `RUNNING` is the heartbeat (every 15 s; extends the 60 s lease); `SUCCESS` or `FAILED` (with `failure_reason`, and `exit_code` for `SCRIPT_FAILURE`) finishes the job. The reply's `cancel_requested` tells the runner to stop |
+| `RequestJob` | Long poll, up to about 25 s: returns a `JobAssignment` (image, script, variables with secrets marked `masked`, timeout) or nothing. Optional `health` (`RunnerHealth`): the runner's check of its Docker host, stored for [monitoring](#monitoring-for-the-console) |
+| `UpdateJob` | `RUNNING` is the heartbeat (every 15 s; extends the 60 s lease); `SUCCESS` or `FAILED` (with `failure_reason`, and `exit_code` for `SCRIPT_FAILURE`) finishes the job. The reply's `cancel_requested` tells the runner to stop. A heartbeat may carry `container` (`ContainerStats`), a sample of the job container's CPU, memory and processes |
 | `AppendLog` | Appends masked log bytes at a byte offset; idempotent, so retries are safe. Returns the stored size and whether the 4 MiB limit was hit |

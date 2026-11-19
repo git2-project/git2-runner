@@ -2,6 +2,7 @@ syntax = "proto3";
 
 package ci.v1;
 
+import "ci/v1/monitoring.proto";
 import "google/protobuf/duration.proto";
 import "google/protobuf/timestamp.proto";
 
@@ -51,6 +52,19 @@ service RunnerAdminService {
   //   - INVALID_ARGUMENT: id is not a UUID.
   //   - NOT_FOUND: no runner has this ID.
   rpc DeleteRunner(DeleteRunnerRequest) returns (DeleteRunnerResponse);
+
+  // ListRunningJobs returns one page of the jobs that are running now, with
+  // the runner that runs each one and its container's latest resource use.
+  // Oldest start first. For the console's "what runs where" view.
+  //
+  // Errors:
+  //   - INVALID_ARGUMENT: runner_id is set but not a UUID, page_size is
+  //     negative or page_token is invalid.
+  rpc ListRunningJobs(ListRunningJobsRequest) returns (ListRunningJobsResponse);
+
+  // GetOverview returns the instance's CI at a glance: runners, the queue
+  // and the last day's pipelines. For the console's dashboard.
+  rpc GetOverview(GetOverviewRequest) returns (GetOverviewResponse);
 }
 
 // RunnerStatus is whether a runner can take jobs right now.
@@ -104,6 +118,11 @@ message Runner {
 
   // When an admin last changed it.
   google.protobuf.Timestamp updated_at = 12;
+
+  // The runner's latest check of its build host and Docker daemon. Unset if
+  // it never sent one (runners before 19 Nov 2026 do not). Look at
+  // health.reported_at: an old report says little about now.
+  RunnerHealth health = 13;
 }
 
 // CreateRegistrationTokenRequest is the input of CreateRegistrationToken.
@@ -124,6 +143,119 @@ message CreateRegistrationTokenResponse {
 
   // When the token stops working if it was not used.
   google.protobuf.Timestamp expires_at = 2;
+}
+
+// ListRunningJobsRequest is the input of ListRunningJobs.
+message ListRunningJobsRequest {
+  // Only the jobs of this runner. Empty for every runner.
+  string runner_id = 1;
+
+  // Maximum number of jobs to return. 0 means the default of 50. Values
+  // above 100 are treated as 100. Negative values are rejected.
+  int32 page_size = 2;
+
+  // Token from a previous response's next_page_token. Empty for the first
+  // page. Tokens are opaque.
+  string page_token = 3;
+}
+
+// ListRunningJobsResponse is the output of ListRunningJobs.
+message ListRunningJobsResponse {
+  // The running jobs, oldest start first.
+  repeated RunningJob jobs = 1;
+
+  // Token for the next page. Empty on the last page.
+  string next_page_token = 2;
+}
+
+// RunningJob is one job that a runner is running now.
+message RunningJob {
+  // ID of the job.
+  string job_id = 1;
+
+  // Name of the job, as in .git2-ci.yml.
+  string name = 2;
+
+  // Stage of the job.
+  string stage = 3;
+
+  // Attempt number, 1 for the first run (see RetryJob).
+  int32 attempt = 4;
+
+  // Pipeline the job belongs to.
+  string pipeline_id = 5;
+
+  // Repository of the pipeline.
+  string repository_id = 6;
+
+  // Branch or tag of the pipeline, for example "refs/heads/main".
+  string ref = 7;
+
+  // Commit of the pipeline.
+  string commit_sha = 8;
+
+  // Runner that runs the job.
+  string runner_id = 9;
+
+  // Name of that runner.
+  string runner_name = 10;
+
+  // When the runner started the job.
+  google.protobuf.Timestamp started_at = 11;
+
+  // The container's latest resource use. Unset until the first heartbeat
+  // with a sample (15 seconds after the start), or if the runner sends none.
+  ContainerStats container = 12;
+}
+
+// GetOverviewRequest is the input of GetOverview.
+message GetOverviewRequest {}
+
+// GetOverviewResponse is the output of GetOverview.
+message GetOverviewResponse {
+  // Runners that are online, as in Runner.status.
+  int32 runners_online = 1;
+
+  // Runners that are offline.
+  int32 runners_offline = 2;
+
+  // Runners an admin paused.
+  int32 runners_paused = 3;
+
+  // Online runners whose latest check says their Docker daemon does not
+  // answer. They take jobs but fail them; look at them first.
+  int32 runners_docker_unreachable = 4;
+
+  // Jobs waiting for a runner.
+  int32 jobs_pending = 5;
+
+  // Jobs running now.
+  int32 jobs_running = 6;
+
+  // When the job that has waited longest was queued. Unset if none waits.
+  // A long wait means no online runner has the job's tags.
+  google.protobuf.Timestamp oldest_pending_since = 7;
+
+  // Pipelines created in the last 24 hours, by their status now.
+  PipelineCounts pipelines_last_24h = 8;
+}
+
+// PipelineCounts counts pipelines by status.
+message PipelineCounts {
+  // Waiting for their first job to start.
+  int32 pending = 1;
+
+  // Running.
+  int32 running = 2;
+
+  // Finished with success.
+  int32 success = 3;
+
+  // Finished with a failure.
+  int32 failed = 4;
+
+  // Canceled.
+  int32 canceled = 5;
 }
 
 // ListRunnersRequest is the input of ListRunners.

@@ -24,6 +24,8 @@ const (
 	RunnerAdminService_GetRunner_FullMethodName               = "/ci.v1.RunnerAdminService/GetRunner"
 	RunnerAdminService_UpdateRunner_FullMethodName            = "/ci.v1.RunnerAdminService/UpdateRunner"
 	RunnerAdminService_DeleteRunner_FullMethodName            = "/ci.v1.RunnerAdminService/DeleteRunner"
+	RunnerAdminService_ListRunningJobs_FullMethodName         = "/ci.v1.RunnerAdminService/ListRunningJobs"
+	RunnerAdminService_GetOverview_FullMethodName             = "/ci.v1.RunnerAdminService/GetOverview"
 )
 
 // RunnerAdminServiceClient is the client API for RunnerAdminService service.
@@ -72,6 +74,17 @@ type RunnerAdminServiceClient interface {
 	//   - INVALID_ARGUMENT: id is not a UUID.
 	//   - NOT_FOUND: no runner has this ID.
 	DeleteRunner(ctx context.Context, in *DeleteRunnerRequest, opts ...grpc.CallOption) (*DeleteRunnerResponse, error)
+	// ListRunningJobs returns one page of the jobs that are running now, with
+	// the runner that runs each one and its container's latest resource use.
+	// Oldest start first. For the console's "what runs where" view.
+	//
+	// Errors:
+	//   - INVALID_ARGUMENT: runner_id is set but not a UUID, page_size is
+	//     negative or page_token is invalid.
+	ListRunningJobs(ctx context.Context, in *ListRunningJobsRequest, opts ...grpc.CallOption) (*ListRunningJobsResponse, error)
+	// GetOverview returns the instance's CI at a glance: runners, the queue
+	// and the last day's pipelines. For the console's dashboard.
+	GetOverview(ctx context.Context, in *GetOverviewRequest, opts ...grpc.CallOption) (*GetOverviewResponse, error)
 }
 
 type runnerAdminServiceClient struct {
@@ -132,6 +145,26 @@ func (c *runnerAdminServiceClient) DeleteRunner(ctx context.Context, in *DeleteR
 	return out, nil
 }
 
+func (c *runnerAdminServiceClient) ListRunningJobs(ctx context.Context, in *ListRunningJobsRequest, opts ...grpc.CallOption) (*ListRunningJobsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListRunningJobsResponse)
+	err := c.cc.Invoke(ctx, RunnerAdminService_ListRunningJobs_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *runnerAdminServiceClient) GetOverview(ctx context.Context, in *GetOverviewRequest, opts ...grpc.CallOption) (*GetOverviewResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetOverviewResponse)
+	err := c.cc.Invoke(ctx, RunnerAdminService_GetOverview_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // RunnerAdminServiceServer is the server API for RunnerAdminService service.
 // All implementations must embed UnimplementedRunnerAdminServiceServer
 // for forward compatibility.
@@ -178,6 +211,17 @@ type RunnerAdminServiceServer interface {
 	//   - INVALID_ARGUMENT: id is not a UUID.
 	//   - NOT_FOUND: no runner has this ID.
 	DeleteRunner(context.Context, *DeleteRunnerRequest) (*DeleteRunnerResponse, error)
+	// ListRunningJobs returns one page of the jobs that are running now, with
+	// the runner that runs each one and its container's latest resource use.
+	// Oldest start first. For the console's "what runs where" view.
+	//
+	// Errors:
+	//   - INVALID_ARGUMENT: runner_id is set but not a UUID, page_size is
+	//     negative or page_token is invalid.
+	ListRunningJobs(context.Context, *ListRunningJobsRequest) (*ListRunningJobsResponse, error)
+	// GetOverview returns the instance's CI at a glance: runners, the queue
+	// and the last day's pipelines. For the console's dashboard.
+	GetOverview(context.Context, *GetOverviewRequest) (*GetOverviewResponse, error)
 	mustEmbedUnimplementedRunnerAdminServiceServer()
 }
 
@@ -202,6 +246,12 @@ func (UnimplementedRunnerAdminServiceServer) UpdateRunner(context.Context, *Upda
 }
 func (UnimplementedRunnerAdminServiceServer) DeleteRunner(context.Context, *DeleteRunnerRequest) (*DeleteRunnerResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method DeleteRunner not implemented")
+}
+func (UnimplementedRunnerAdminServiceServer) ListRunningJobs(context.Context, *ListRunningJobsRequest) (*ListRunningJobsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListRunningJobs not implemented")
+}
+func (UnimplementedRunnerAdminServiceServer) GetOverview(context.Context, *GetOverviewRequest) (*GetOverviewResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetOverview not implemented")
 }
 func (UnimplementedRunnerAdminServiceServer) mustEmbedUnimplementedRunnerAdminServiceServer() {}
 func (UnimplementedRunnerAdminServiceServer) testEmbeddedByValue()                            {}
@@ -314,6 +364,42 @@ func _RunnerAdminService_DeleteRunner_Handler(srv interface{}, ctx context.Conte
 	return interceptor(ctx, in, info, handler)
 }
 
+func _RunnerAdminService_ListRunningJobs_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListRunningJobsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RunnerAdminServiceServer).ListRunningJobs(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RunnerAdminService_ListRunningJobs_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RunnerAdminServiceServer).ListRunningJobs(ctx, req.(*ListRunningJobsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _RunnerAdminService_GetOverview_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetOverviewRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RunnerAdminServiceServer).GetOverview(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RunnerAdminService_GetOverview_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RunnerAdminServiceServer).GetOverview(ctx, req.(*GetOverviewRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // RunnerAdminService_ServiceDesc is the grpc.ServiceDesc for RunnerAdminService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -340,6 +426,14 @@ var RunnerAdminService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "DeleteRunner",
 			Handler:    _RunnerAdminService_DeleteRunner_Handler,
+		},
+		{
+			MethodName: "ListRunningJobs",
+			Handler:    _RunnerAdminService_ListRunningJobs_Handler,
+		},
+		{
+			MethodName: "GetOverview",
+			Handler:    _RunnerAdminService_GetOverview_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

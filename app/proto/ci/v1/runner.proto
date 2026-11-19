@@ -2,6 +2,7 @@ syntax = "proto3";
 
 package ci.v1;
 
+import "ci/v1/monitoring.proto";
 import "ci/v1/pipeline.proto";
 import "google/protobuf/duration.proto";
 
@@ -116,7 +117,11 @@ message RegisterRunnerResponse {
 
 // RequestJobRequest is the input of RequestJob. It is empty on purpose:
 // the runner is known from its token.
-message RequestJobRequest {}
+message RequestJobRequest {
+  // The runner's latest check of its build host. Optional: ci-svc keeps the
+  // previous report when it is unset.
+  RunnerHealth health = 1;
+}
 
 // RequestJobResponse is the output of RequestJob.
 message RequestJobResponse {
@@ -192,6 +197,10 @@ message UpdateJobRequest {
 
   // Why the job failed. Required with FAILED, unset otherwise.
   JobFailureReason failure_reason = 4;
+
+  // Resource use of the job's container. Optional, and only read with
+  // RUNNING.
+  ContainerStats container = 5;
 }
 
 // UpdateJobResponse is the output of UpdateJob.

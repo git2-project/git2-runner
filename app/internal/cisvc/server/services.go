@@ -179,9 +179,9 @@ func clientIP(ctx context.Context) string {
 	return p.Addr.String()
 }
 
-func (s *runnerServer) RequestJob(ctx context.Context, _ *civ1.RequestJobRequest) (*civ1.RequestJobResponse, error) {
+func (s *runnerServer) RequestJob(ctx context.Context, req *civ1.RequestJobRequest) (*civ1.RequestJobResponse, error) {
 	r := runnerFrom(ctx)
-	if err := s.d.Runners.Touch(ctx, r.ID); err != nil {
+	if err := s.d.Runners.Touch(ctx, r.ID, healthJSON(req.GetHealth())); err != nil {
 		return nil, toStatus(ctx, s.d.Log, err)
 	}
 	a, err := s.d.Pipelines.RequestJob(ctx, pipeline.Runner{ID: r.ID, Labels: r.Labels, Paused: r.Paused})
@@ -216,7 +216,8 @@ func (s *runnerServer) UpdateJob(ctx context.Context, req *civ1.UpdateJobRequest
 	if !ok {
 		return nil, toStatus(ctx, s.d.Log, apierr.InvalidField("failure_reason", "is unknown"))
 	}
-	canceled, err := s.d.Pipelines.UpdateJob(ctx, runnerFrom(ctx).ID, pipeline.UpdateInput{
+	runnerID := runnerFrom(ctx).ID
+	canceled, err := s.d.Pipelines.UpdateJob(ctx, runnerID, pipeline.UpdateInput{
 		JobID:    id,
 		Status:   jobStatusFromProto(req.GetStatus()),
 		ExitCode: req.ExitCode,
@@ -224,6 +225,12 @@ func (s *runnerServer) UpdateJob(ctx context.Context, req *civ1.UpdateJobRequest
 	})
 	if err != nil {
 		return nil, toStatus(ctx, s.d.Log, err)
+	}
+	if stats := statsJSON(req.GetContainer()); stats != "" && req.GetStatus() == civ1.JobStatus_JOB_STATUS_RUNNING {
+		// Monitoring only: a lost sample must never fail the heartbeat.
+		if err := s.d.Pipelines.RecordContainerStats(ctx, runnerID, id, stats); err != nil {
+			s.d.Log.WarnContext(ctx, "store container stats", "job_id", id.String(), "err", err.Error())
+		}
 	}
 	return &civ1.UpdateJobResponse{CancelRequested: canceled}, nil
 }

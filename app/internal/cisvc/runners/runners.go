@@ -56,6 +56,11 @@ type Runner struct {
 	LastSeenAt  *time.Time
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
+	// Health is the runner's latest report on its build host, as JSON
+	// (ci.v1.RunnerHealth), and HealthAt when ci-svc received it. Both are
+	// nil until the runner sends one.
+	Health   *string
+	HealthAt *time.Time
 }
 
 // Online reports whether the runner asked for work within OnlineWindow.
@@ -83,12 +88,12 @@ func NewService(pool *pgxpool.Pool) *Service {
 	return &Service{pool: pool}
 }
 
-const runnerColumns = `id, name, description, labels, executor, version, platform, paused, last_seen_at, created_at, updated_at`
+const runnerColumns = `id, name, description, labels, executor, version, platform, paused, last_seen_at, created_at, updated_at, health::text, health_at`
 
 func scanRunner(row pgx.Row) (Runner, error) {
 	var r Runner
 	err := row.Scan(&r.ID, &r.Name, &r.Description, &r.Labels, &r.Executor, &r.Version, &r.Platform,
-		&r.Paused, &r.LastSeenAt, &r.CreatedAt, &r.UpdatedAt)
+		&r.Paused, &r.LastSeenAt, &r.CreatedAt, &r.UpdatedAt, &r.Health, &r.HealthAt)
 	return r, err
 }
 
@@ -224,9 +229,18 @@ func (s *Service) Authenticate(ctx context.Context, tok string) (Runner, error) 
 	return r, nil
 }
 
-// Touch records that a runner asked for work just now.
-func (s *Service) Touch(ctx context.Context, id uuid.UUID) error {
-	if _, err := s.pool.Exec(ctx, `UPDATE ci_svc.runners SET last_seen_at = now() WHERE id = $1`, id); err != nil {
+// Touch records that a runner asked for work just now, and stores its
+// health report (ci.v1.RunnerHealth as JSON) when health is not nil.
+func (s *Service) Touch(ctx context.Context, id uuid.UUID, health *string) error {
+	// The report is sent as text and cast, so it also works in pgx's exec
+	// mode (see package db). Without one, the previous report stays.
+	_, err := s.pool.Exec(ctx, `
+		UPDATE ci_svc.runners
+		SET last_seen_at = now(),
+		    health = COALESCE($2::jsonb, health),
+		    health_at = CASE WHEN $2::text IS NULL THEN health_at ELSE now() END
+		WHERE id = $1`, id, health)
+	if err != nil {
 		return fmt.Errorf("touch runner: %w", err)
 	}
 	return nil
