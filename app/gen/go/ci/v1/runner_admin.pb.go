@@ -29,7 +29,8 @@ type RunnerStatus int32
 const (
 	// Never used.
 	RunnerStatus_RUNNER_STATUS_UNSPECIFIED RunnerStatus = 0
-	// The runner asked ci-svc for work within the last 90 seconds.
+	// The runner asked ci-svc for work, or sent a heartbeat for a running
+	// job, within the last 90 seconds.
 	RunnerStatus_RUNNER_STATUS_ONLINE RunnerStatus = 1
 	// The runner has not been heard from for 90 seconds, or never.
 	RunnerStatus_RUNNER_STATUS_OFFLINE RunnerStatus = 2
@@ -108,7 +109,11 @@ type Runner struct {
 	// When the runner registered.
 	CreatedAt *timestamppb.Timestamp `protobuf:"bytes,11,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
 	// When an admin last changed it.
-	UpdatedAt     *timestamppb.Timestamp `protobuf:"bytes,12,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
+	UpdatedAt *timestamppb.Timestamp `protobuf:"bytes,12,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
+	// The runner's latest check of its build host and Docker daemon. Unset if
+	// it never sent one (runners before 19 Nov 2026 do not). Look at
+	// health.reported_at: an old report says little about now.
+	Health        *RunnerHealth `protobuf:"bytes,13,opt,name=health,proto3" json:"health,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -227,6 +232,13 @@ func (x *Runner) GetUpdatedAt() *timestamppb.Timestamp {
 	return nil
 }
 
+func (x *Runner) GetHealth() *RunnerHealth {
+	if x != nil {
+		return x.Health
+	}
+	return nil
+}
+
 // CreateRegistrationTokenRequest is the input of CreateRegistrationToken.
 type CreateRegistrationTokenRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -339,6 +351,503 @@ func (x *CreateRegistrationTokenResponse) GetExpiresAt() *timestamppb.Timestamp 
 	return nil
 }
 
+// ListRunningJobsRequest is the input of ListRunningJobs.
+type ListRunningJobsRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Only the jobs of this runner. Empty for every runner.
+	RunnerId string `protobuf:"bytes,1,opt,name=runner_id,json=runnerId,proto3" json:"runner_id,omitempty"`
+	// Maximum number of jobs to return. 0 means the default of 50. Values
+	// above 100 are treated as 100. Negative values are rejected.
+	PageSize int32 `protobuf:"varint,2,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
+	// Token from a previous response's next_page_token. Empty for the first
+	// page. Tokens are opaque.
+	PageToken     string `protobuf:"bytes,3,opt,name=page_token,json=pageToken,proto3" json:"page_token,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListRunningJobsRequest) Reset() {
+	*x = ListRunningJobsRequest{}
+	mi := &file_ci_v1_runner_admin_proto_msgTypes[3]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListRunningJobsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListRunningJobsRequest) ProtoMessage() {}
+
+func (x *ListRunningJobsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_ci_v1_runner_admin_proto_msgTypes[3]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListRunningJobsRequest.ProtoReflect.Descriptor instead.
+func (*ListRunningJobsRequest) Descriptor() ([]byte, []int) {
+	return file_ci_v1_runner_admin_proto_rawDescGZIP(), []int{3}
+}
+
+func (x *ListRunningJobsRequest) GetRunnerId() string {
+	if x != nil {
+		return x.RunnerId
+	}
+	return ""
+}
+
+func (x *ListRunningJobsRequest) GetPageSize() int32 {
+	if x != nil {
+		return x.PageSize
+	}
+	return 0
+}
+
+func (x *ListRunningJobsRequest) GetPageToken() string {
+	if x != nil {
+		return x.PageToken
+	}
+	return ""
+}
+
+// ListRunningJobsResponse is the output of ListRunningJobs.
+type ListRunningJobsResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The running jobs, oldest start first.
+	Jobs []*RunningJob `protobuf:"bytes,1,rep,name=jobs,proto3" json:"jobs,omitempty"`
+	// Token for the next page. Empty on the last page.
+	NextPageToken string `protobuf:"bytes,2,opt,name=next_page_token,json=nextPageToken,proto3" json:"next_page_token,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListRunningJobsResponse) Reset() {
+	*x = ListRunningJobsResponse{}
+	mi := &file_ci_v1_runner_admin_proto_msgTypes[4]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListRunningJobsResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListRunningJobsResponse) ProtoMessage() {}
+
+func (x *ListRunningJobsResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_ci_v1_runner_admin_proto_msgTypes[4]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListRunningJobsResponse.ProtoReflect.Descriptor instead.
+func (*ListRunningJobsResponse) Descriptor() ([]byte, []int) {
+	return file_ci_v1_runner_admin_proto_rawDescGZIP(), []int{4}
+}
+
+func (x *ListRunningJobsResponse) GetJobs() []*RunningJob {
+	if x != nil {
+		return x.Jobs
+	}
+	return nil
+}
+
+func (x *ListRunningJobsResponse) GetNextPageToken() string {
+	if x != nil {
+		return x.NextPageToken
+	}
+	return ""
+}
+
+// RunningJob is one job that a runner is running now.
+type RunningJob struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// ID of the job.
+	JobId string `protobuf:"bytes,1,opt,name=job_id,json=jobId,proto3" json:"job_id,omitempty"`
+	// Name of the job, as in .git2-ci.yml.
+	Name string `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
+	// Stage of the job.
+	Stage string `protobuf:"bytes,3,opt,name=stage,proto3" json:"stage,omitempty"`
+	// Attempt number, 1 for the first run (see RetryJob).
+	Attempt int32 `protobuf:"varint,4,opt,name=attempt,proto3" json:"attempt,omitempty"`
+	// Pipeline the job belongs to.
+	PipelineId string `protobuf:"bytes,5,opt,name=pipeline_id,json=pipelineId,proto3" json:"pipeline_id,omitempty"`
+	// Repository of the pipeline.
+	RepositoryId string `protobuf:"bytes,6,opt,name=repository_id,json=repositoryId,proto3" json:"repository_id,omitempty"`
+	// Branch or tag of the pipeline, for example "refs/heads/main".
+	Ref string `protobuf:"bytes,7,opt,name=ref,proto3" json:"ref,omitempty"`
+	// Commit of the pipeline.
+	CommitSha string `protobuf:"bytes,8,opt,name=commit_sha,json=commitSha,proto3" json:"commit_sha,omitempty"`
+	// Runner that runs the job.
+	RunnerId string `protobuf:"bytes,9,opt,name=runner_id,json=runnerId,proto3" json:"runner_id,omitempty"`
+	// Name of that runner.
+	RunnerName string `protobuf:"bytes,10,opt,name=runner_name,json=runnerName,proto3" json:"runner_name,omitempty"`
+	// When the runner started the job.
+	StartedAt *timestamppb.Timestamp `protobuf:"bytes,11,opt,name=started_at,json=startedAt,proto3" json:"started_at,omitempty"`
+	// The container's latest resource use. Unset until the first heartbeat
+	// with a sample (15 seconds after the start), or if the runner sends none.
+	Container     *ContainerStats `protobuf:"bytes,12,opt,name=container,proto3" json:"container,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RunningJob) Reset() {
+	*x = RunningJob{}
+	mi := &file_ci_v1_runner_admin_proto_msgTypes[5]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RunningJob) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RunningJob) ProtoMessage() {}
+
+func (x *RunningJob) ProtoReflect() protoreflect.Message {
+	mi := &file_ci_v1_runner_admin_proto_msgTypes[5]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RunningJob.ProtoReflect.Descriptor instead.
+func (*RunningJob) Descriptor() ([]byte, []int) {
+	return file_ci_v1_runner_admin_proto_rawDescGZIP(), []int{5}
+}
+
+func (x *RunningJob) GetJobId() string {
+	if x != nil {
+		return x.JobId
+	}
+	return ""
+}
+
+func (x *RunningJob) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *RunningJob) GetStage() string {
+	if x != nil {
+		return x.Stage
+	}
+	return ""
+}
+
+func (x *RunningJob) GetAttempt() int32 {
+	if x != nil {
+		return x.Attempt
+	}
+	return 0
+}
+
+func (x *RunningJob) GetPipelineId() string {
+	if x != nil {
+		return x.PipelineId
+	}
+	return ""
+}
+
+func (x *RunningJob) GetRepositoryId() string {
+	if x != nil {
+		return x.RepositoryId
+	}
+	return ""
+}
+
+func (x *RunningJob) GetRef() string {
+	if x != nil {
+		return x.Ref
+	}
+	return ""
+}
+
+func (x *RunningJob) GetCommitSha() string {
+	if x != nil {
+		return x.CommitSha
+	}
+	return ""
+}
+
+func (x *RunningJob) GetRunnerId() string {
+	if x != nil {
+		return x.RunnerId
+	}
+	return ""
+}
+
+func (x *RunningJob) GetRunnerName() string {
+	if x != nil {
+		return x.RunnerName
+	}
+	return ""
+}
+
+func (x *RunningJob) GetStartedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.StartedAt
+	}
+	return nil
+}
+
+func (x *RunningJob) GetContainer() *ContainerStats {
+	if x != nil {
+		return x.Container
+	}
+	return nil
+}
+
+// GetOverviewRequest is the input of GetOverview.
+type GetOverviewRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetOverviewRequest) Reset() {
+	*x = GetOverviewRequest{}
+	mi := &file_ci_v1_runner_admin_proto_msgTypes[6]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetOverviewRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetOverviewRequest) ProtoMessage() {}
+
+func (x *GetOverviewRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_ci_v1_runner_admin_proto_msgTypes[6]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetOverviewRequest.ProtoReflect.Descriptor instead.
+func (*GetOverviewRequest) Descriptor() ([]byte, []int) {
+	return file_ci_v1_runner_admin_proto_rawDescGZIP(), []int{6}
+}
+
+// GetOverviewResponse is the output of GetOverview.
+type GetOverviewResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Runners that are online, as in Runner.status.
+	RunnersOnline int32 `protobuf:"varint,1,opt,name=runners_online,json=runnersOnline,proto3" json:"runners_online,omitempty"`
+	// Runners that are offline.
+	RunnersOffline int32 `protobuf:"varint,2,opt,name=runners_offline,json=runnersOffline,proto3" json:"runners_offline,omitempty"`
+	// Runners an admin paused.
+	RunnersPaused int32 `protobuf:"varint,3,opt,name=runners_paused,json=runnersPaused,proto3" json:"runners_paused,omitempty"`
+	// Online runners whose latest check says their Docker daemon does not
+	// answer. They take jobs but fail them; look at them first.
+	RunnersDockerUnreachable int32 `protobuf:"varint,4,opt,name=runners_docker_unreachable,json=runnersDockerUnreachable,proto3" json:"runners_docker_unreachable,omitempty"`
+	// Jobs waiting for a runner.
+	JobsPending int32 `protobuf:"varint,5,opt,name=jobs_pending,json=jobsPending,proto3" json:"jobs_pending,omitempty"`
+	// Jobs running now.
+	JobsRunning int32 `protobuf:"varint,6,opt,name=jobs_running,json=jobsRunning,proto3" json:"jobs_running,omitempty"`
+	// When the job that has waited longest was queued. Unset if none waits.
+	// A long wait means no online runner has the job's tags.
+	OldestPendingSince *timestamppb.Timestamp `protobuf:"bytes,7,opt,name=oldest_pending_since,json=oldestPendingSince,proto3" json:"oldest_pending_since,omitempty"`
+	// Pipelines created in the last 24 hours, by their status now.
+	PipelinesLast_24H *PipelineCounts `protobuf:"bytes,8,opt,name=pipelines_last_24h,json=pipelinesLast24h,proto3" json:"pipelines_last_24h,omitempty"`
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
+}
+
+func (x *GetOverviewResponse) Reset() {
+	*x = GetOverviewResponse{}
+	mi := &file_ci_v1_runner_admin_proto_msgTypes[7]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetOverviewResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetOverviewResponse) ProtoMessage() {}
+
+func (x *GetOverviewResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_ci_v1_runner_admin_proto_msgTypes[7]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetOverviewResponse.ProtoReflect.Descriptor instead.
+func (*GetOverviewResponse) Descriptor() ([]byte, []int) {
+	return file_ci_v1_runner_admin_proto_rawDescGZIP(), []int{7}
+}
+
+func (x *GetOverviewResponse) GetRunnersOnline() int32 {
+	if x != nil {
+		return x.RunnersOnline
+	}
+	return 0
+}
+
+func (x *GetOverviewResponse) GetRunnersOffline() int32 {
+	if x != nil {
+		return x.RunnersOffline
+	}
+	return 0
+}
+
+func (x *GetOverviewResponse) GetRunnersPaused() int32 {
+	if x != nil {
+		return x.RunnersPaused
+	}
+	return 0
+}
+
+func (x *GetOverviewResponse) GetRunnersDockerUnreachable() int32 {
+	if x != nil {
+		return x.RunnersDockerUnreachable
+	}
+	return 0
+}
+
+func (x *GetOverviewResponse) GetJobsPending() int32 {
+	if x != nil {
+		return x.JobsPending
+	}
+	return 0
+}
+
+func (x *GetOverviewResponse) GetJobsRunning() int32 {
+	if x != nil {
+		return x.JobsRunning
+	}
+	return 0
+}
+
+func (x *GetOverviewResponse) GetOldestPendingSince() *timestamppb.Timestamp {
+	if x != nil {
+		return x.OldestPendingSince
+	}
+	return nil
+}
+
+func (x *GetOverviewResponse) GetPipelinesLast_24H() *PipelineCounts {
+	if x != nil {
+		return x.PipelinesLast_24H
+	}
+	return nil
+}
+
+// PipelineCounts counts pipelines by status.
+type PipelineCounts struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Waiting for their first job to start.
+	Pending int32 `protobuf:"varint,1,opt,name=pending,proto3" json:"pending,omitempty"`
+	// Running.
+	Running int32 `protobuf:"varint,2,opt,name=running,proto3" json:"running,omitempty"`
+	// Finished with success.
+	Success int32 `protobuf:"varint,3,opt,name=success,proto3" json:"success,omitempty"`
+	// Finished with a failure.
+	Failed int32 `protobuf:"varint,4,opt,name=failed,proto3" json:"failed,omitempty"`
+	// Canceled.
+	Canceled      int32 `protobuf:"varint,5,opt,name=canceled,proto3" json:"canceled,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *PipelineCounts) Reset() {
+	*x = PipelineCounts{}
+	mi := &file_ci_v1_runner_admin_proto_msgTypes[8]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PipelineCounts) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PipelineCounts) ProtoMessage() {}
+
+func (x *PipelineCounts) ProtoReflect() protoreflect.Message {
+	mi := &file_ci_v1_runner_admin_proto_msgTypes[8]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PipelineCounts.ProtoReflect.Descriptor instead.
+func (*PipelineCounts) Descriptor() ([]byte, []int) {
+	return file_ci_v1_runner_admin_proto_rawDescGZIP(), []int{8}
+}
+
+func (x *PipelineCounts) GetPending() int32 {
+	if x != nil {
+		return x.Pending
+	}
+	return 0
+}
+
+func (x *PipelineCounts) GetRunning() int32 {
+	if x != nil {
+		return x.Running
+	}
+	return 0
+}
+
+func (x *PipelineCounts) GetSuccess() int32 {
+	if x != nil {
+		return x.Success
+	}
+	return 0
+}
+
+func (x *PipelineCounts) GetFailed() int32 {
+	if x != nil {
+		return x.Failed
+	}
+	return 0
+}
+
+func (x *PipelineCounts) GetCanceled() int32 {
+	if x != nil {
+		return x.Canceled
+	}
+	return 0
+}
+
 // ListRunnersRequest is the input of ListRunners.
 type ListRunnersRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -354,7 +863,7 @@ type ListRunnersRequest struct {
 
 func (x *ListRunnersRequest) Reset() {
 	*x = ListRunnersRequest{}
-	mi := &file_ci_v1_runner_admin_proto_msgTypes[3]
+	mi := &file_ci_v1_runner_admin_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -366,7 +875,7 @@ func (x *ListRunnersRequest) String() string {
 func (*ListRunnersRequest) ProtoMessage() {}
 
 func (x *ListRunnersRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_ci_v1_runner_admin_proto_msgTypes[3]
+	mi := &file_ci_v1_runner_admin_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -379,7 +888,7 @@ func (x *ListRunnersRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListRunnersRequest.ProtoReflect.Descriptor instead.
 func (*ListRunnersRequest) Descriptor() ([]byte, []int) {
-	return file_ci_v1_runner_admin_proto_rawDescGZIP(), []int{3}
+	return file_ci_v1_runner_admin_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *ListRunnersRequest) GetPageSize() int32 {
@@ -409,7 +918,7 @@ type ListRunnersResponse struct {
 
 func (x *ListRunnersResponse) Reset() {
 	*x = ListRunnersResponse{}
-	mi := &file_ci_v1_runner_admin_proto_msgTypes[4]
+	mi := &file_ci_v1_runner_admin_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -421,7 +930,7 @@ func (x *ListRunnersResponse) String() string {
 func (*ListRunnersResponse) ProtoMessage() {}
 
 func (x *ListRunnersResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_ci_v1_runner_admin_proto_msgTypes[4]
+	mi := &file_ci_v1_runner_admin_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -434,7 +943,7 @@ func (x *ListRunnersResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListRunnersResponse.ProtoReflect.Descriptor instead.
 func (*ListRunnersResponse) Descriptor() ([]byte, []int) {
-	return file_ci_v1_runner_admin_proto_rawDescGZIP(), []int{4}
+	return file_ci_v1_runner_admin_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *ListRunnersResponse) GetRunners() []*Runner {
@@ -462,7 +971,7 @@ type GetRunnerRequest struct {
 
 func (x *GetRunnerRequest) Reset() {
 	*x = GetRunnerRequest{}
-	mi := &file_ci_v1_runner_admin_proto_msgTypes[5]
+	mi := &file_ci_v1_runner_admin_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -474,7 +983,7 @@ func (x *GetRunnerRequest) String() string {
 func (*GetRunnerRequest) ProtoMessage() {}
 
 func (x *GetRunnerRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_ci_v1_runner_admin_proto_msgTypes[5]
+	mi := &file_ci_v1_runner_admin_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -487,7 +996,7 @@ func (x *GetRunnerRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetRunnerRequest.ProtoReflect.Descriptor instead.
 func (*GetRunnerRequest) Descriptor() ([]byte, []int) {
-	return file_ci_v1_runner_admin_proto_rawDescGZIP(), []int{5}
+	return file_ci_v1_runner_admin_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *GetRunnerRequest) GetId() string {
@@ -508,7 +1017,7 @@ type GetRunnerResponse struct {
 
 func (x *GetRunnerResponse) Reset() {
 	*x = GetRunnerResponse{}
-	mi := &file_ci_v1_runner_admin_proto_msgTypes[6]
+	mi := &file_ci_v1_runner_admin_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -520,7 +1029,7 @@ func (x *GetRunnerResponse) String() string {
 func (*GetRunnerResponse) ProtoMessage() {}
 
 func (x *GetRunnerResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_ci_v1_runner_admin_proto_msgTypes[6]
+	mi := &file_ci_v1_runner_admin_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -533,7 +1042,7 @@ func (x *GetRunnerResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetRunnerResponse.ProtoReflect.Descriptor instead.
 func (*GetRunnerResponse) Descriptor() ([]byte, []int) {
-	return file_ci_v1_runner_admin_proto_rawDescGZIP(), []int{6}
+	return file_ci_v1_runner_admin_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *GetRunnerResponse) GetRunner() *Runner {
@@ -559,7 +1068,7 @@ type UpdateRunnerRequest struct {
 
 func (x *UpdateRunnerRequest) Reset() {
 	*x = UpdateRunnerRequest{}
-	mi := &file_ci_v1_runner_admin_proto_msgTypes[7]
+	mi := &file_ci_v1_runner_admin_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -571,7 +1080,7 @@ func (x *UpdateRunnerRequest) String() string {
 func (*UpdateRunnerRequest) ProtoMessage() {}
 
 func (x *UpdateRunnerRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_ci_v1_runner_admin_proto_msgTypes[7]
+	mi := &file_ci_v1_runner_admin_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -584,7 +1093,7 @@ func (x *UpdateRunnerRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateRunnerRequest.ProtoReflect.Descriptor instead.
 func (*UpdateRunnerRequest) Descriptor() ([]byte, []int) {
-	return file_ci_v1_runner_admin_proto_rawDescGZIP(), []int{7}
+	return file_ci_v1_runner_admin_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *UpdateRunnerRequest) GetId() string {
@@ -619,7 +1128,7 @@ type UpdateRunnerResponse struct {
 
 func (x *UpdateRunnerResponse) Reset() {
 	*x = UpdateRunnerResponse{}
-	mi := &file_ci_v1_runner_admin_proto_msgTypes[8]
+	mi := &file_ci_v1_runner_admin_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -631,7 +1140,7 @@ func (x *UpdateRunnerResponse) String() string {
 func (*UpdateRunnerResponse) ProtoMessage() {}
 
 func (x *UpdateRunnerResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_ci_v1_runner_admin_proto_msgTypes[8]
+	mi := &file_ci_v1_runner_admin_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -644,7 +1153,7 @@ func (x *UpdateRunnerResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateRunnerResponse.ProtoReflect.Descriptor instead.
 func (*UpdateRunnerResponse) Descriptor() ([]byte, []int) {
-	return file_ci_v1_runner_admin_proto_rawDescGZIP(), []int{8}
+	return file_ci_v1_runner_admin_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *UpdateRunnerResponse) GetRunner() *Runner {
@@ -665,7 +1174,7 @@ type DeleteRunnerRequest struct {
 
 func (x *DeleteRunnerRequest) Reset() {
 	*x = DeleteRunnerRequest{}
-	mi := &file_ci_v1_runner_admin_proto_msgTypes[9]
+	mi := &file_ci_v1_runner_admin_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -677,7 +1186,7 @@ func (x *DeleteRunnerRequest) String() string {
 func (*DeleteRunnerRequest) ProtoMessage() {}
 
 func (x *DeleteRunnerRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_ci_v1_runner_admin_proto_msgTypes[9]
+	mi := &file_ci_v1_runner_admin_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -690,7 +1199,7 @@ func (x *DeleteRunnerRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteRunnerRequest.ProtoReflect.Descriptor instead.
 func (*DeleteRunnerRequest) Descriptor() ([]byte, []int) {
-	return file_ci_v1_runner_admin_proto_rawDescGZIP(), []int{9}
+	return file_ci_v1_runner_admin_proto_rawDescGZIP(), []int{15}
 }
 
 func (x *DeleteRunnerRequest) GetId() string {
@@ -710,7 +1219,7 @@ type DeleteRunnerResponse struct {
 
 func (x *DeleteRunnerResponse) Reset() {
 	*x = DeleteRunnerResponse{}
-	mi := &file_ci_v1_runner_admin_proto_msgTypes[10]
+	mi := &file_ci_v1_runner_admin_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -722,7 +1231,7 @@ func (x *DeleteRunnerResponse) String() string {
 func (*DeleteRunnerResponse) ProtoMessage() {}
 
 func (x *DeleteRunnerResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_ci_v1_runner_admin_proto_msgTypes[10]
+	mi := &file_ci_v1_runner_admin_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -735,14 +1244,14 @@ func (x *DeleteRunnerResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteRunnerResponse.ProtoReflect.Descriptor instead.
 func (*DeleteRunnerResponse) Descriptor() ([]byte, []int) {
-	return file_ci_v1_runner_admin_proto_rawDescGZIP(), []int{10}
+	return file_ci_v1_runner_admin_proto_rawDescGZIP(), []int{16}
 }
 
 var File_ci_v1_runner_admin_proto protoreflect.FileDescriptor
 
 const file_ci_v1_runner_admin_proto_rawDesc = "" +
 	"\n" +
-	"\x18ci/v1/runner_admin.proto\x12\x05ci.v1\x1a\x1egoogle/protobuf/duration.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\xb1\x03\n" +
+	"\x18ci/v1/runner_admin.proto\x12\x05ci.v1\x1a\x16ci/v1/monitoring.proto\x1a\x1egoogle/protobuf/duration.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\xde\x03\n" +
 	"\x06Runner\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12 \n" +
@@ -759,7 +1268,8 @@ const file_ci_v1_runner_admin_proto_rawDesc = "" +
 	"\n" +
 	"created_at\x18\v \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\x129\n" +
 	"\n" +
-	"updated_at\x18\f \x01(\v2\x1a.google.protobuf.TimestampR\tupdatedAt\"|\n" +
+	"updated_at\x18\f \x01(\v2\x1a.google.protobuf.TimestampR\tupdatedAt\x12+\n" +
+	"\x06health\x18\r \x01(\v2\x13.ci.v1.RunnerHealthR\x06health\"|\n" +
 	"\x1eCreateRegistrationTokenRequest\x12 \n" +
 	"\vdescription\x18\x01 \x01(\tR\vdescription\x128\n" +
 	"\n" +
@@ -767,7 +1277,50 @@ const file_ci_v1_runner_admin_proto_rawDesc = "" +
 	"\x1fCreateRegistrationTokenResponse\x12\x14\n" +
 	"\x05token\x18\x01 \x01(\tR\x05token\x129\n" +
 	"\n" +
-	"expires_at\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\texpiresAt\"P\n" +
+	"expires_at\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\texpiresAt\"q\n" +
+	"\x16ListRunningJobsRequest\x12\x1b\n" +
+	"\trunner_id\x18\x01 \x01(\tR\brunnerId\x12\x1b\n" +
+	"\tpage_size\x18\x02 \x01(\x05R\bpageSize\x12\x1d\n" +
+	"\n" +
+	"page_token\x18\x03 \x01(\tR\tpageToken\"h\n" +
+	"\x17ListRunningJobsResponse\x12%\n" +
+	"\x04jobs\x18\x01 \x03(\v2\x11.ci.v1.RunningJobR\x04jobs\x12&\n" +
+	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken\"\x8c\x03\n" +
+	"\n" +
+	"RunningJob\x12\x15\n" +
+	"\x06job_id\x18\x01 \x01(\tR\x05jobId\x12\x12\n" +
+	"\x04name\x18\x02 \x01(\tR\x04name\x12\x14\n" +
+	"\x05stage\x18\x03 \x01(\tR\x05stage\x12\x18\n" +
+	"\aattempt\x18\x04 \x01(\x05R\aattempt\x12\x1f\n" +
+	"\vpipeline_id\x18\x05 \x01(\tR\n" +
+	"pipelineId\x12#\n" +
+	"\rrepository_id\x18\x06 \x01(\tR\frepositoryId\x12\x10\n" +
+	"\x03ref\x18\a \x01(\tR\x03ref\x12\x1d\n" +
+	"\n" +
+	"commit_sha\x18\b \x01(\tR\tcommitSha\x12\x1b\n" +
+	"\trunner_id\x18\t \x01(\tR\brunnerId\x12\x1f\n" +
+	"\vrunner_name\x18\n" +
+	" \x01(\tR\n" +
+	"runnerName\x129\n" +
+	"\n" +
+	"started_at\x18\v \x01(\v2\x1a.google.protobuf.TimestampR\tstartedAt\x123\n" +
+	"\tcontainer\x18\f \x01(\v2\x15.ci.v1.ContainerStatsR\tcontainer\"\x14\n" +
+	"\x12GetOverviewRequest\"\xa3\x03\n" +
+	"\x13GetOverviewResponse\x12%\n" +
+	"\x0erunners_online\x18\x01 \x01(\x05R\rrunnersOnline\x12'\n" +
+	"\x0frunners_offline\x18\x02 \x01(\x05R\x0erunnersOffline\x12%\n" +
+	"\x0erunners_paused\x18\x03 \x01(\x05R\rrunnersPaused\x12<\n" +
+	"\x1arunners_docker_unreachable\x18\x04 \x01(\x05R\x18runnersDockerUnreachable\x12!\n" +
+	"\fjobs_pending\x18\x05 \x01(\x05R\vjobsPending\x12!\n" +
+	"\fjobs_running\x18\x06 \x01(\x05R\vjobsRunning\x12L\n" +
+	"\x14oldest_pending_since\x18\a \x01(\v2\x1a.google.protobuf.TimestampR\x12oldestPendingSince\x12C\n" +
+	"\x12pipelines_last_24h\x18\b \x01(\v2\x15.ci.v1.PipelineCountsR\x10pipelinesLast24h\"\x92\x01\n" +
+	"\x0ePipelineCounts\x12\x18\n" +
+	"\apending\x18\x01 \x01(\x05R\apending\x12\x18\n" +
+	"\arunning\x18\x02 \x01(\x05R\arunning\x12\x18\n" +
+	"\asuccess\x18\x03 \x01(\x05R\asuccess\x12\x16\n" +
+	"\x06failed\x18\x04 \x01(\x05R\x06failed\x12\x1a\n" +
+	"\bcanceled\x18\x05 \x01(\x05R\bcanceled\"P\n" +
 	"\x12ListRunnersRequest\x12\x1b\n" +
 	"\tpage_size\x18\x01 \x01(\x05R\bpageSize\x12\x1d\n" +
 	"\n" +
@@ -794,13 +1347,15 @@ const file_ci_v1_runner_admin_proto_rawDesc = "" +
 	"\x19RUNNER_STATUS_UNSPECIFIED\x10\x00\x12\x18\n" +
 	"\x14RUNNER_STATUS_ONLINE\x10\x01\x12\x19\n" +
 	"\x15RUNNER_STATUS_OFFLINE\x10\x02\x12\x18\n" +
-	"\x14RUNNER_STATUS_PAUSED\x10\x032\x96\x03\n" +
+	"\x14RUNNER_STATUS_PAUSED\x10\x032\xae\x04\n" +
 	"\x12RunnerAdminService\x12h\n" +
 	"\x17CreateRegistrationToken\x12%.ci.v1.CreateRegistrationTokenRequest\x1a&.ci.v1.CreateRegistrationTokenResponse\x12D\n" +
 	"\vListRunners\x12\x19.ci.v1.ListRunnersRequest\x1a\x1a.ci.v1.ListRunnersResponse\x12>\n" +
 	"\tGetRunner\x12\x17.ci.v1.GetRunnerRequest\x1a\x18.ci.v1.GetRunnerResponse\x12G\n" +
 	"\fUpdateRunner\x12\x1a.ci.v1.UpdateRunnerRequest\x1a\x1b.ci.v1.UpdateRunnerResponse\x12G\n" +
-	"\fDeleteRunner\x12\x1a.ci.v1.DeleteRunnerRequest\x1a\x1b.ci.v1.DeleteRunnerResponseB\x8d\x01\n" +
+	"\fDeleteRunner\x12\x1a.ci.v1.DeleteRunnerRequest\x1a\x1b.ci.v1.DeleteRunnerResponse\x12P\n" +
+	"\x0fListRunningJobs\x12\x1d.ci.v1.ListRunningJobsRequest\x1a\x1e.ci.v1.ListRunningJobsResponse\x12D\n" +
+	"\vGetOverview\x12\x19.ci.v1.GetOverviewRequest\x1a\x1a.ci.v1.GetOverviewResponseB\x8d\x01\n" +
 	"\tcom.ci.v1B\x10RunnerAdminProtoP\x01Z9github.com/git2-project/git2-runner/app/gen/go/ci/v1;civ1\xa2\x02\x03CXX\xaa\x02\x05Ci.V1\xca\x02\x05Ci\\V1\xe2\x02\x11Ci\\V1\\GPBMetadata\xea\x02\x06Ci::V1b\x06proto3"
 
 var (
@@ -816,48 +1371,66 @@ func file_ci_v1_runner_admin_proto_rawDescGZIP() []byte {
 }
 
 var file_ci_v1_runner_admin_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_ci_v1_runner_admin_proto_msgTypes = make([]protoimpl.MessageInfo, 11)
+var file_ci_v1_runner_admin_proto_msgTypes = make([]protoimpl.MessageInfo, 17)
 var file_ci_v1_runner_admin_proto_goTypes = []any{
 	(RunnerStatus)(0),                       // 0: ci.v1.RunnerStatus
 	(*Runner)(nil),                          // 1: ci.v1.Runner
 	(*CreateRegistrationTokenRequest)(nil),  // 2: ci.v1.CreateRegistrationTokenRequest
 	(*CreateRegistrationTokenResponse)(nil), // 3: ci.v1.CreateRegistrationTokenResponse
-	(*ListRunnersRequest)(nil),              // 4: ci.v1.ListRunnersRequest
-	(*ListRunnersResponse)(nil),             // 5: ci.v1.ListRunnersResponse
-	(*GetRunnerRequest)(nil),                // 6: ci.v1.GetRunnerRequest
-	(*GetRunnerResponse)(nil),               // 7: ci.v1.GetRunnerResponse
-	(*UpdateRunnerRequest)(nil),             // 8: ci.v1.UpdateRunnerRequest
-	(*UpdateRunnerResponse)(nil),            // 9: ci.v1.UpdateRunnerResponse
-	(*DeleteRunnerRequest)(nil),             // 10: ci.v1.DeleteRunnerRequest
-	(*DeleteRunnerResponse)(nil),            // 11: ci.v1.DeleteRunnerResponse
-	(*timestamppb.Timestamp)(nil),           // 12: google.protobuf.Timestamp
-	(*durationpb.Duration)(nil),             // 13: google.protobuf.Duration
+	(*ListRunningJobsRequest)(nil),          // 4: ci.v1.ListRunningJobsRequest
+	(*ListRunningJobsResponse)(nil),         // 5: ci.v1.ListRunningJobsResponse
+	(*RunningJob)(nil),                      // 6: ci.v1.RunningJob
+	(*GetOverviewRequest)(nil),              // 7: ci.v1.GetOverviewRequest
+	(*GetOverviewResponse)(nil),             // 8: ci.v1.GetOverviewResponse
+	(*PipelineCounts)(nil),                  // 9: ci.v1.PipelineCounts
+	(*ListRunnersRequest)(nil),              // 10: ci.v1.ListRunnersRequest
+	(*ListRunnersResponse)(nil),             // 11: ci.v1.ListRunnersResponse
+	(*GetRunnerRequest)(nil),                // 12: ci.v1.GetRunnerRequest
+	(*GetRunnerResponse)(nil),               // 13: ci.v1.GetRunnerResponse
+	(*UpdateRunnerRequest)(nil),             // 14: ci.v1.UpdateRunnerRequest
+	(*UpdateRunnerResponse)(nil),            // 15: ci.v1.UpdateRunnerResponse
+	(*DeleteRunnerRequest)(nil),             // 16: ci.v1.DeleteRunnerRequest
+	(*DeleteRunnerResponse)(nil),            // 17: ci.v1.DeleteRunnerResponse
+	(*timestamppb.Timestamp)(nil),           // 18: google.protobuf.Timestamp
+	(*RunnerHealth)(nil),                    // 19: ci.v1.RunnerHealth
+	(*durationpb.Duration)(nil),             // 20: google.protobuf.Duration
+	(*ContainerStats)(nil),                  // 21: ci.v1.ContainerStats
 }
 var file_ci_v1_runner_admin_proto_depIdxs = []int32{
 	0,  // 0: ci.v1.Runner.status:type_name -> ci.v1.RunnerStatus
-	12, // 1: ci.v1.Runner.last_seen_at:type_name -> google.protobuf.Timestamp
-	12, // 2: ci.v1.Runner.created_at:type_name -> google.protobuf.Timestamp
-	12, // 3: ci.v1.Runner.updated_at:type_name -> google.protobuf.Timestamp
-	13, // 4: ci.v1.CreateRegistrationTokenRequest.expires_in:type_name -> google.protobuf.Duration
-	12, // 5: ci.v1.CreateRegistrationTokenResponse.expires_at:type_name -> google.protobuf.Timestamp
-	1,  // 6: ci.v1.ListRunnersResponse.runners:type_name -> ci.v1.Runner
-	1,  // 7: ci.v1.GetRunnerResponse.runner:type_name -> ci.v1.Runner
-	1,  // 8: ci.v1.UpdateRunnerResponse.runner:type_name -> ci.v1.Runner
-	2,  // 9: ci.v1.RunnerAdminService.CreateRegistrationToken:input_type -> ci.v1.CreateRegistrationTokenRequest
-	4,  // 10: ci.v1.RunnerAdminService.ListRunners:input_type -> ci.v1.ListRunnersRequest
-	6,  // 11: ci.v1.RunnerAdminService.GetRunner:input_type -> ci.v1.GetRunnerRequest
-	8,  // 12: ci.v1.RunnerAdminService.UpdateRunner:input_type -> ci.v1.UpdateRunnerRequest
-	10, // 13: ci.v1.RunnerAdminService.DeleteRunner:input_type -> ci.v1.DeleteRunnerRequest
-	3,  // 14: ci.v1.RunnerAdminService.CreateRegistrationToken:output_type -> ci.v1.CreateRegistrationTokenResponse
-	5,  // 15: ci.v1.RunnerAdminService.ListRunners:output_type -> ci.v1.ListRunnersResponse
-	7,  // 16: ci.v1.RunnerAdminService.GetRunner:output_type -> ci.v1.GetRunnerResponse
-	9,  // 17: ci.v1.RunnerAdminService.UpdateRunner:output_type -> ci.v1.UpdateRunnerResponse
-	11, // 18: ci.v1.RunnerAdminService.DeleteRunner:output_type -> ci.v1.DeleteRunnerResponse
-	14, // [14:19] is the sub-list for method output_type
-	9,  // [9:14] is the sub-list for method input_type
-	9,  // [9:9] is the sub-list for extension type_name
-	9,  // [9:9] is the sub-list for extension extendee
-	0,  // [0:9] is the sub-list for field type_name
+	18, // 1: ci.v1.Runner.last_seen_at:type_name -> google.protobuf.Timestamp
+	18, // 2: ci.v1.Runner.created_at:type_name -> google.protobuf.Timestamp
+	18, // 3: ci.v1.Runner.updated_at:type_name -> google.protobuf.Timestamp
+	19, // 4: ci.v1.Runner.health:type_name -> ci.v1.RunnerHealth
+	20, // 5: ci.v1.CreateRegistrationTokenRequest.expires_in:type_name -> google.protobuf.Duration
+	18, // 6: ci.v1.CreateRegistrationTokenResponse.expires_at:type_name -> google.protobuf.Timestamp
+	6,  // 7: ci.v1.ListRunningJobsResponse.jobs:type_name -> ci.v1.RunningJob
+	18, // 8: ci.v1.RunningJob.started_at:type_name -> google.protobuf.Timestamp
+	21, // 9: ci.v1.RunningJob.container:type_name -> ci.v1.ContainerStats
+	18, // 10: ci.v1.GetOverviewResponse.oldest_pending_since:type_name -> google.protobuf.Timestamp
+	9,  // 11: ci.v1.GetOverviewResponse.pipelines_last_24h:type_name -> ci.v1.PipelineCounts
+	1,  // 12: ci.v1.ListRunnersResponse.runners:type_name -> ci.v1.Runner
+	1,  // 13: ci.v1.GetRunnerResponse.runner:type_name -> ci.v1.Runner
+	1,  // 14: ci.v1.UpdateRunnerResponse.runner:type_name -> ci.v1.Runner
+	2,  // 15: ci.v1.RunnerAdminService.CreateRegistrationToken:input_type -> ci.v1.CreateRegistrationTokenRequest
+	10, // 16: ci.v1.RunnerAdminService.ListRunners:input_type -> ci.v1.ListRunnersRequest
+	12, // 17: ci.v1.RunnerAdminService.GetRunner:input_type -> ci.v1.GetRunnerRequest
+	14, // 18: ci.v1.RunnerAdminService.UpdateRunner:input_type -> ci.v1.UpdateRunnerRequest
+	16, // 19: ci.v1.RunnerAdminService.DeleteRunner:input_type -> ci.v1.DeleteRunnerRequest
+	4,  // 20: ci.v1.RunnerAdminService.ListRunningJobs:input_type -> ci.v1.ListRunningJobsRequest
+	7,  // 21: ci.v1.RunnerAdminService.GetOverview:input_type -> ci.v1.GetOverviewRequest
+	3,  // 22: ci.v1.RunnerAdminService.CreateRegistrationToken:output_type -> ci.v1.CreateRegistrationTokenResponse
+	11, // 23: ci.v1.RunnerAdminService.ListRunners:output_type -> ci.v1.ListRunnersResponse
+	13, // 24: ci.v1.RunnerAdminService.GetRunner:output_type -> ci.v1.GetRunnerResponse
+	15, // 25: ci.v1.RunnerAdminService.UpdateRunner:output_type -> ci.v1.UpdateRunnerResponse
+	17, // 26: ci.v1.RunnerAdminService.DeleteRunner:output_type -> ci.v1.DeleteRunnerResponse
+	5,  // 27: ci.v1.RunnerAdminService.ListRunningJobs:output_type -> ci.v1.ListRunningJobsResponse
+	8,  // 28: ci.v1.RunnerAdminService.GetOverview:output_type -> ci.v1.GetOverviewResponse
+	22, // [22:29] is the sub-list for method output_type
+	15, // [15:22] is the sub-list for method input_type
+	15, // [15:15] is the sub-list for extension type_name
+	15, // [15:15] is the sub-list for extension extendee
+	0,  // [0:15] is the sub-list for field type_name
 }
 
 func init() { file_ci_v1_runner_admin_proto_init() }
@@ -865,14 +1438,15 @@ func file_ci_v1_runner_admin_proto_init() {
 	if File_ci_v1_runner_admin_proto != nil {
 		return
 	}
-	file_ci_v1_runner_admin_proto_msgTypes[7].OneofWrappers = []any{}
+	file_ci_v1_monitoring_proto_init()
+	file_ci_v1_runner_admin_proto_msgTypes[13].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_ci_v1_runner_admin_proto_rawDesc), len(file_ci_v1_runner_admin_proto_rawDesc)),
 			NumEnums:      1,
-			NumMessages:   11,
+			NumMessages:   17,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

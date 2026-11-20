@@ -175,10 +175,13 @@ func (x *RegisterRunnerResponse) GetRunnerToken() string {
 	return ""
 }
 
-// RequestJobRequest is the input of RequestJob. It is empty on purpose:
-// the runner is known from its token.
+// RequestJobRequest is the input of RequestJob. The runner is known from
+// its token.
 type RequestJobRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The runner's latest check of its build host. Optional: ci-svc keeps the
+	// previous report when it is unset.
+	Health        *RunnerHealth `protobuf:"bytes,1,opt,name=health,proto3" json:"health,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -211,6 +214,13 @@ func (x *RequestJobRequest) ProtoReflect() protoreflect.Message {
 // Deprecated: Use RequestJobRequest.ProtoReflect.Descriptor instead.
 func (*RequestJobRequest) Descriptor() ([]byte, []int) {
 	return file_ci_v1_runner_proto_rawDescGZIP(), []int{2}
+}
+
+func (x *RequestJobRequest) GetHealth() *RunnerHealth {
+	if x != nil {
+		return x.Health
+	}
+	return nil
 }
 
 // RequestJobResponse is the output of RequestJob.
@@ -477,6 +487,13 @@ type UpdateJobRequest struct {
 	ExitCode *int32 `protobuf:"varint,3,opt,name=exit_code,json=exitCode,proto3,oneof" json:"exit_code,omitempty"`
 	// Why the job failed. Required with FAILED, unset otherwise.
 	FailureReason JobFailureReason `protobuf:"varint,4,opt,name=failure_reason,json=failureReason,proto3,enum=ci.v1.JobFailureReason" json:"failure_reason,omitempty"`
+	// Resource use of the job's container. Optional, and only read with
+	// RUNNING.
+	Container *ContainerStats `protobuf:"bytes,5,opt,name=container,proto3" json:"container,omitempty"`
+	// The runner's latest check of its build host, as with RequestJob, so
+	// the report stays fresh while a job runs. Optional, and only read with
+	// RUNNING.
+	Health        *RunnerHealth `protobuf:"bytes,6,opt,name=health,proto3" json:"health,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -537,6 +554,20 @@ func (x *UpdateJobRequest) GetFailureReason() JobFailureReason {
 		return x.FailureReason
 	}
 	return JobFailureReason_JOB_FAILURE_REASON_UNSPECIFIED
+}
+
+func (x *UpdateJobRequest) GetContainer() *ContainerStats {
+	if x != nil {
+		return x.Container
+	}
+	return nil
+}
+
+func (x *UpdateJobRequest) GetHealth() *RunnerHealth {
+	if x != nil {
+		return x.Health
+	}
+	return nil
 }
 
 // UpdateJobResponse is the output of UpdateJob.
@@ -712,7 +743,7 @@ var File_ci_v1_runner_proto protoreflect.FileDescriptor
 
 const file_ci_v1_runner_proto_rawDesc = "" +
 	"\n" +
-	"\x12ci/v1/runner.proto\x12\x05ci.v1\x1a\x14ci/v1/pipeline.proto\x1a\x1egoogle/protobuf/duration.proto\"\xc4\x01\n" +
+	"\x12ci/v1/runner.proto\x12\x05ci.v1\x1a\x16ci/v1/monitoring.proto\x1a\x14ci/v1/pipeline.proto\x1a\x1egoogle/protobuf/duration.proto\"\xc4\x01\n" +
 	"\x15RegisterRunnerRequest\x12-\n" +
 	"\x12registration_token\x18\x01 \x01(\tR\x11registrationToken\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x16\n" +
@@ -722,8 +753,9 @@ const file_ci_v1_runner_proto_rawDesc = "" +
 	"\bplatform\x18\x06 \x01(\tR\bplatform\"X\n" +
 	"\x16RegisterRunnerResponse\x12\x1b\n" +
 	"\trunner_id\x18\x01 \x01(\tR\brunnerId\x12!\n" +
-	"\frunner_token\x18\x02 \x01(\tR\vrunnerToken\"\x13\n" +
-	"\x11RequestJobRequest\"<\n" +
+	"\frunner_token\x18\x02 \x01(\tR\vrunnerToken\"@\n" +
+	"\x11RequestJobRequest\x12+\n" +
+	"\x06health\x18\x01 \x01(\v2\x13.ci.v1.RunnerHealthR\x06health\"<\n" +
 	"\x12RequestJobResponse\x12&\n" +
 	"\x03job\x18\x01 \x01(\v2\x14.ci.v1.JobAssignmentR\x03job\"\xdc\x02\n" +
 	"\rJobAssignment\x12\x15\n" +
@@ -744,12 +776,14 @@ const file_ci_v1_runner_proto_rawDesc = "" +
 	"\vJobVariable\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value\x12\x16\n" +
-	"\x06masked\x18\x03 \x01(\bR\x06masked\"\xc3\x01\n" +
+	"\x06masked\x18\x03 \x01(\bR\x06masked\"\xa5\x02\n" +
 	"\x10UpdateJobRequest\x12\x15\n" +
 	"\x06job_id\x18\x01 \x01(\tR\x05jobId\x12(\n" +
 	"\x06status\x18\x02 \x01(\x0e2\x10.ci.v1.JobStatusR\x06status\x12 \n" +
 	"\texit_code\x18\x03 \x01(\x05H\x00R\bexitCode\x88\x01\x01\x12>\n" +
-	"\x0efailure_reason\x18\x04 \x01(\x0e2\x17.ci.v1.JobFailureReasonR\rfailureReasonB\f\n" +
+	"\x0efailure_reason\x18\x04 \x01(\x0e2\x17.ci.v1.JobFailureReasonR\rfailureReason\x123\n" +
+	"\tcontainer\x18\x05 \x01(\v2\x15.ci.v1.ContainerStatsR\tcontainer\x12+\n" +
+	"\x06health\x18\x06 \x01(\v2\x13.ci.v1.RunnerHealthR\x06healthB\f\n" +
 	"\n" +
 	"_exit_code\">\n" +
 	"\x11UpdateJobResponse\x12)\n" +
@@ -793,29 +827,34 @@ var file_ci_v1_runner_proto_goTypes = []any{
 	(*UpdateJobResponse)(nil),      // 7: ci.v1.UpdateJobResponse
 	(*AppendLogRequest)(nil),       // 8: ci.v1.AppendLogRequest
 	(*AppendLogResponse)(nil),      // 9: ci.v1.AppendLogResponse
-	(*durationpb.Duration)(nil),    // 10: google.protobuf.Duration
-	(JobStatus)(0),                 // 11: ci.v1.JobStatus
-	(JobFailureReason)(0),          // 12: ci.v1.JobFailureReason
+	(*RunnerHealth)(nil),           // 10: ci.v1.RunnerHealth
+	(*durationpb.Duration)(nil),    // 11: google.protobuf.Duration
+	(JobStatus)(0),                 // 12: ci.v1.JobStatus
+	(JobFailureReason)(0),          // 13: ci.v1.JobFailureReason
+	(*ContainerStats)(nil),         // 14: ci.v1.ContainerStats
 }
 var file_ci_v1_runner_proto_depIdxs = []int32{
-	4,  // 0: ci.v1.RequestJobResponse.job:type_name -> ci.v1.JobAssignment
-	5,  // 1: ci.v1.JobAssignment.variables:type_name -> ci.v1.JobVariable
-	10, // 2: ci.v1.JobAssignment.timeout:type_name -> google.protobuf.Duration
-	11, // 3: ci.v1.UpdateJobRequest.status:type_name -> ci.v1.JobStatus
-	12, // 4: ci.v1.UpdateJobRequest.failure_reason:type_name -> ci.v1.JobFailureReason
-	0,  // 5: ci.v1.RunnerService.RegisterRunner:input_type -> ci.v1.RegisterRunnerRequest
-	2,  // 6: ci.v1.RunnerService.RequestJob:input_type -> ci.v1.RequestJobRequest
-	6,  // 7: ci.v1.RunnerService.UpdateJob:input_type -> ci.v1.UpdateJobRequest
-	8,  // 8: ci.v1.RunnerService.AppendLog:input_type -> ci.v1.AppendLogRequest
-	1,  // 9: ci.v1.RunnerService.RegisterRunner:output_type -> ci.v1.RegisterRunnerResponse
-	3,  // 10: ci.v1.RunnerService.RequestJob:output_type -> ci.v1.RequestJobResponse
-	7,  // 11: ci.v1.RunnerService.UpdateJob:output_type -> ci.v1.UpdateJobResponse
-	9,  // 12: ci.v1.RunnerService.AppendLog:output_type -> ci.v1.AppendLogResponse
-	9,  // [9:13] is the sub-list for method output_type
-	5,  // [5:9] is the sub-list for method input_type
-	5,  // [5:5] is the sub-list for extension type_name
-	5,  // [5:5] is the sub-list for extension extendee
-	0,  // [0:5] is the sub-list for field type_name
+	10, // 0: ci.v1.RequestJobRequest.health:type_name -> ci.v1.RunnerHealth
+	4,  // 1: ci.v1.RequestJobResponse.job:type_name -> ci.v1.JobAssignment
+	5,  // 2: ci.v1.JobAssignment.variables:type_name -> ci.v1.JobVariable
+	11, // 3: ci.v1.JobAssignment.timeout:type_name -> google.protobuf.Duration
+	12, // 4: ci.v1.UpdateJobRequest.status:type_name -> ci.v1.JobStatus
+	13, // 5: ci.v1.UpdateJobRequest.failure_reason:type_name -> ci.v1.JobFailureReason
+	14, // 6: ci.v1.UpdateJobRequest.container:type_name -> ci.v1.ContainerStats
+	10, // 7: ci.v1.UpdateJobRequest.health:type_name -> ci.v1.RunnerHealth
+	0,  // 8: ci.v1.RunnerService.RegisterRunner:input_type -> ci.v1.RegisterRunnerRequest
+	2,  // 9: ci.v1.RunnerService.RequestJob:input_type -> ci.v1.RequestJobRequest
+	6,  // 10: ci.v1.RunnerService.UpdateJob:input_type -> ci.v1.UpdateJobRequest
+	8,  // 11: ci.v1.RunnerService.AppendLog:input_type -> ci.v1.AppendLogRequest
+	1,  // 12: ci.v1.RunnerService.RegisterRunner:output_type -> ci.v1.RegisterRunnerResponse
+	3,  // 13: ci.v1.RunnerService.RequestJob:output_type -> ci.v1.RequestJobResponse
+	7,  // 14: ci.v1.RunnerService.UpdateJob:output_type -> ci.v1.UpdateJobResponse
+	9,  // 15: ci.v1.RunnerService.AppendLog:output_type -> ci.v1.AppendLogResponse
+	12, // [12:16] is the sub-list for method output_type
+	8,  // [8:12] is the sub-list for method input_type
+	8,  // [8:8] is the sub-list for extension type_name
+	8,  // [8:8] is the sub-list for extension extendee
+	0,  // [0:8] is the sub-list for field type_name
 }
 
 func init() { file_ci_v1_runner_proto_init() }
@@ -823,6 +862,7 @@ func file_ci_v1_runner_proto_init() {
 	if File_ci_v1_runner_proto != nil {
 		return
 	}
+	file_ci_v1_monitoring_proto_init()
 	file_ci_v1_pipeline_proto_init()
 	file_ci_v1_runner_proto_msgTypes[6].OneofWrappers = []any{}
 	type x struct{}
