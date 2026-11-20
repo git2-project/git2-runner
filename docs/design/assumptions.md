@@ -7,7 +7,7 @@ The other repos are still young, so we build against these assumptions until the
 | [A-01](#a-01--ci-svc-lives-in-git2-runner) | ci-svc lives in git2-runner | Osman, Bilge and Beste informed | W1 | **confirmed** 2026-10-26 ([ADR 0001](../decisions/0001-ci-svc-lives-in-git2-runner.md)) |
 | [A-02](#a-02--how-a-push-reaches-us) | How a push reaches us | Apo | W4 | **confirmed** 2026-11-18: built (#20) and tested end to end against git2-codeplane `v0.3.0` ([ADR 0010](../decisions/0010-events-delivered-by-eventsink-push.md)) |
 | [A-03](#a-03--reading-git2-ciyml-at-a-commit) | Reading `.git2-ci.yml` at a commit | Apo | W4 | **confirmed** 2026-11-09: `CommitService.GetBlob`, git2-codeplane `v0.2.0` |
-| [A-04](#a-04--how-a-job-gets-the-source-code) | How a job gets the source code | Apo | W4 | open |
+| [A-04](#a-04--how-a-job-gets-the-source-code) | How a job gets the source code | Apo | W4 | **confirmed** 2026-11-18: `CommitService.GetArchive`, git2-codeplane `v0.4.0` (codeplane ADR 0016) |
 | [A-05](#a-05--the-ci-secrets-key-is-in-every-backup) | The CI secrets key is in every backup | Ceyda | W5 | open |
 | [A-06](#a-06--one-bucket-and-our-prefix) | One bucket, and our prefix | Ceyda | W6 | open |
 | [A-07](#a-07--live-logs-in-the-browser) | Live logs in the browser | Bilge | W6 | open |
@@ -52,6 +52,7 @@ Weeks: W1 starts 26 Oct 2026, W2 2 Nov, W3 9 Nov, W4 16 Nov, W5 23 Nov, W6 30 No
 **We assume (v0):** codeplane can stream a commit as a tar archive over gRPC (`git archive`). ci-svc fetches it and passes it to the runner, so runners never talk to codeplane.
 **Later:** the runner clones over HTTPS with a short-lived, read-only job token for that one repository. That needs the gateway and auth-svc to accept such tokens.
 **If wrong:** we need the job token path in v0, which involves three lanes.
+**Confirmed on 2026-11-18:** `CommitService.GetArchive(repository_id, ref)` (git2-codeplane `v0.4.0`, PR 18, codeplane ADR 0016) streams the commit as a tar, with the files exactly as committed and no `.git`. We checked that Docker's copy into a container never writes outside the target: it refuses a root-level `..` entry or a symlink pointing outside, and then the whole copy fails. Our #19 must turn that failure into a clear job error.
 
 ### A-05 · The CI secrets key is in every backup
 
@@ -97,7 +98,7 @@ Weeks: W1 starts 26 Oct 2026, W2 2 Nov, W3 9 Nov, W4 16 Nov, W5 23 Nov, W6 30 No
 ### A-13 · One outbox format
 
 **We assume:** every service writes its events to `<schema>.outbox` in the same transaction as the change: an ID (UUID), the type (the full proto message name, for example `ci.v1.PipelineFinished`), the payload (canonical protobuf JSON) and `created_at`. codeplane is the first service to build this; we copy its format.
-**Format confirmed** (codeplane ADR 0007).
+**Format confirmed** (codeplane ADR 0007). One exception: git-svc writes `RepositoryPushed` right *after* Git changes the refs, which live on disk, so that event cannot share their transaction (codeplane ADR 0012). `RepositoryCreated` and `RepositoryDeleted` do share it.
 **Delivery agreed on 2026-11-08** ([ADR 0010](../decisions/0010-events-delivered-by-eventsink-push.md)):
 - Each producer's relay pushes its own outbox to `events.v1.EventSink.Deliver` on its subscribers.
 - A shared relay is ruled out: reading every service's outbox would break the one-schema-per-service rule of git2's `CLAUDE.md` and `README.md`.

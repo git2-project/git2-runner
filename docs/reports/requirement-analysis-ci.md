@@ -22,7 +22,7 @@ flowchart LR
     GS -->|"RepositoryPushed<br/>(outbox → relay → EventSink)"| CI[ci-svc]
     Dash["Dash<br/>dash-api"] -->|"PipelineService<br/>:9090"| CI
     Admin["Admin<br/>admin-api"] -->|"RunnerAdminService<br/>SecretService :9090"| CI
-    CI -->|"GetBlob<br/>.git2-ci.yml"| GS
+    CI -->|"GetBlob: .git2-ci.yml<br/>GetArchive: job source"| GS
     CI --- PG[("PostgreSQL<br/>ci_svc: state + queue")]
     CI -.->|wake-ups only| R[("Redis")]
     RN["git2-runner<br/>(UT-07, build VM)"] -->|"RunnerService :9091<br/>long poll"| CI
@@ -159,7 +159,7 @@ sequenceDiagram
     participant RN as git2-runner
     participant DA as dash-api
     Dev->>GS: git push
-    GS->>GS: outbox row RepositoryPushed (same transaction as the refs)
+    GS->>GS: refs updated, then outbox row RepositoryPushed
     GS->>CI: relay → EventSink.Deliver(event)
     CI->>DB: inbox row (event_id unique)
     CI->>GS: GetBlob(.git2-ci.yml @ new_sha)
@@ -168,6 +168,10 @@ sequenceDiagram
     RN->>CI: RequestJob (long poll ≤ 25 s)
     CI->>DB: lease one pending job (SKIP LOCKED)
     CI-->>RN: job: image, script, variables + secrets
+    RN->>CI: job source (issue 19, from W5)
+    CI->>GS: GetArchive(new_sha), tar stream
+    CI-->>RN: the archive, only if the stream ended OK
+    RN->>RN: copy into /workspace with the Docker API
     loop while the job runs
         RN->>CI: AppendLog(offset, bytes)
         RN->>CI: UpdateJob(RUNNING) every 15 s (extends the lease)
@@ -214,5 +218,5 @@ A pipeline is `PENDING` until its first job starts, `RUNNING` until every job is
 2. **FR-51 is per branch or tag.** "Exactly one pipeline per push" should read "one pipeline for each created or updated branch or tag that has `.git2-ci.yml`". This was raised in the review of git2 #33.
 3. **FR-61 has five reasons.** `runner_system_failure` (the runner itself broke) is missing from the Specification's list.
 4. **FR-67, pausing.** A paused runner finishes the job it is running and takes no new ones; queued jobs go to other runners.
-5. **A gap on push.** git-svc writes the event just after updating the refs (FR-04 note). If it crashes in between, that push starts no pipeline. The user can start one by hand (FR-60), and the loss is logged.
+5. **A gap on push.** git-svc writes the event just after updating the refs (FR-04 note). If git-svc crashes or loses its database in between, that push starts no pipeline. A database failure is logged; a crash is not. The user can start a pipeline by hand (FR-60).
 6. **Permissions sit in front of CI.** ci-svc trusts dash-api and admin-api to check the user's role (A-10). Its internal port must never be reachable from outside the instance network (A-09, A-11).
