@@ -1,1399 +1,175 @@
 <!doctype html>
-<html lang="tr">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>git2 CI Mimarisi</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
-<style>
-/* Layout: tek sütunlu teknik föy (en çok 1120px), yapışkan bölüm çubuğu; geniş şemalar kendi yatay kaydırma kutusunda.
-   Renk kodu bilgi taşır: kobalt = ci-svc (kontrol düzlemi), bakır = runner / build host (veri düzlemi), gri = diğer şeritler. */
+<html lang="tr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>git2 CI Adım Adım</title><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600;700&family=IBM+Plex+Sans+Condensed:wght@600;700&family=IBM+Plex+Sans:wght@400;600;700&display=swap"><style>
 :root {
-  --bg: #eef1f5;
-  --surface: #ffffff;
-  --surface-2: #f5f7fa;
-  --ink: #162030;
-  --ink-2: #4b5768;
-  --line: #cfd6df;
-  --line-2: #e3e8ee;
-  --cp: #2445b8;
-  --cp-tint: #e4eafb;
-  --dp: #93500f;
-  --dp-tint: #f8ecdf;
-  --ok: #1b7442;
-  --ok-tint: #e0f1e7;
-  --bad: #b42318;
-  --bad-tint: #fbe6e3;
-  --run: #8a5a00;
-  --run-tint: #fbefd2;
-  --mute: #5f6b7d;
-  --mute-tint: #eceff3;
+  --bg: #eef1f5; --surface: #ffffff; --surface-2: #f6f8fb; --ink: #162030; --ink-2: #4b5768;
+  --line: #cfd6df; --line-2: #e3e8ee;
+  --cp: #2445b8; --cp-tint: #e4eafb;
+  --dp: #93500f; --dp-tint: #f8ecdf;
+  --db: #0f766e; --db-tint: #dcf2ef;
+  --rd: #b4234f; --rd-tint: #fbe4ec;
+  --mute: #5f6b7d; --mute-tint: #eceff3;
+  --ok: #1b7442; --ok-tint: #e0f1e7; --warn: #8a5a00; --warn-tint: #fbefd2; --bad: #b42318;
   --on-fill: #ffffff;
-  --font-display: "IBM Plex Sans Condensed", "Arial Narrow", "Roboto Condensed", system-ui, sans-serif;
-  --font-body: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-  --font-mono: "IBM Plex Mono", ui-monospace, "Cascadia Mono", "SFMono-Regular", Menlo, Consolas, monospace;
-  color-scheme: light;
+  --font-display: "IBM Plex Sans Condensed", "Arial Narrow", system-ui, sans-serif;
+  --font-body: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "Cascadia Mono", Menlo, Consolas, monospace;
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     --bg: #0e131a; --surface: #151c26; --surface-2: #1a2330; --ink: #e3e8ef; --ink-2: #9ba8b9;
     --line: #2d3848; --line-2: #222b38;
     --cp: #93a9ff; --cp-tint: #1b2546; --dp: #e7a463; --dp-tint: #36230f;
-    --ok: #63cc8f; --ok-tint: #12301f; --bad: #ff8d7e; --bad-tint: #3b1712;
-    --run: #e9b64c; --run-tint: #33280e; --mute: #93a0b2; --mute-tint: #202a37;
-    --on-fill: #0e131a;
-    color-scheme: dark;
+    --db: #4fd1c0; --db-tint: #0f2d2a; --rd: #ff8fb0; --rd-tint: #3a1522;
+    --mute: #93a0b2; --mute-tint: #202a37;
+    --ok: #63cc8f; --ok-tint: #12301f; --warn: #e9b64c; --warn-tint: #33280e; --bad: #ff8d7e;
+    --on-fill: #0e131a; color-scheme: dark;
   }
 }
 :root[data-theme="dark"] {
   --bg: #0e131a; --surface: #151c26; --surface-2: #1a2330; --ink: #e3e8ef; --ink-2: #9ba8b9;
   --line: #2d3848; --line-2: #222b38;
   --cp: #93a9ff; --cp-tint: #1b2546; --dp: #e7a463; --dp-tint: #36230f;
-  --ok: #63cc8f; --ok-tint: #12301f; --bad: #ff8d7e; --bad-tint: #3b1712;
-  --run: #e9b64c; --run-tint: #33280e; --mute: #93a0b2; --mute-tint: #202a37;
-  --on-fill: #0e131a;
-  color-scheme: dark;
+  --db: #4fd1c0; --db-tint: #0f2d2a; --rd: #ff8fb0; --rd-tint: #3a1522;
+  --mute: #93a0b2; --mute-tint: #202a37;
+  --ok: #63cc8f; --ok-tint: #12301f; --warn: #e9b64c; --warn-tint: #33280e; --bad: #ff8d7e;
+  --on-fill: #0e131a; color-scheme: dark;
 }
-
 * { box-sizing: border-box; }
-html { -webkit-text-size-adjust: 100%; }
-@media (prefers-reduced-motion: no-preference) { html { scroll-behavior: smooth; } }
-body {
-  margin: 0;
-  background: var(--bg);
-  color: var(--ink);
-  font: 400 15px/1.55 var(--font-body);
-  padding-top: env(safe-area-inset-top, 0px);
-  padding-bottom: env(safe-area-inset-bottom, 0px);
-}
-body::before {
-  content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px);
-  z-index: 10; background: var(--bg);
-}
-.wrap {
-  max-width: 1120px; margin: 0 auto;
-  padding-left: max(16px, env(safe-area-inset-left, 0px));
-  padding-right: max(16px, env(safe-area-inset-right, 0px));
-}
+html { scroll-behavior: smooth; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.55 var(--font-body); }
+.wrap { max-width: 1100px; margin: 0 auto; padding-block: 28px 72px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+h1, h2, h3 { font-family: var(--font-display); text-wrap: balance; margin: 0; }
+h1 { font-size: clamp(28px, 4.6vw, 42px); line-height: 1.1; }
+h2 { font-size: 27px; line-height: 1.2; }
+h3 { font-size: 18px; }
+p { margin: 0; max-width: 72ch; }
 a { color: var(--cp); }
-code, .mono { font-family: var(--font-mono); font-size: .88em; }
-:focus-visible { outline: 2px solid var(--cp); outline-offset: 2px; border-radius: 4px; }
-
-/* ---------- header ---------- */
-header.top { padding-block: 36px 20px; }
-.kicker {
-  font: 600 12px/1 var(--font-body); letter-spacing: .1em; text-transform: uppercase; color: var(--ink-2);
-  display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center;
-}
-.kicker .sw { display: inline-flex; align-items: center; gap: 6px; }
-.kicker .sw i { width: 10px; height: 10px; border-radius: 2px; display: inline-block; }
-h1 {
-  font: 700 clamp(32px, 6vw, 48px)/1.05 var(--font-display); letter-spacing: -.01em;
-  margin: 14px 0 10px; text-wrap: balance;
-}
-.lede { margin: 0; max-width: 62ch; color: var(--ink-2); font-size: 16px; }
-.facts {
-  margin-top: 22px; display: grid; gap: 0;
-  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-  border: 1px solid var(--line); border-radius: 10px; background: var(--surface); overflow: hidden;
-}
-.fact { padding: 12px 14px; border-right: 1px solid var(--line-2); border-bottom: 1px solid var(--line-2); min-width: 0; }
-.fact b { display: block; font: 700 22px/1.1 var(--font-display); font-variant-numeric: tabular-nums; }
-.fact span { font-size: 12.5px; color: var(--ink-2); }
-.fact code { font-size: 11.5px; }
-.src { margin-top: 12px; font-size: 12.5px; color: var(--ink-2); }
-
-/* ---------- nav ---------- */
-nav.toc {
-  position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5;
-  background: var(--bg); border-bottom: 1px solid var(--line);
-}
-nav.toc .wrap { overflow-x: auto; scrollbar-width: none; }
-nav.toc .wrap::-webkit-scrollbar { display: none; }
-nav.toc ul { list-style: none; margin: 0; padding: 0; display: flex; gap: 4px; white-space: nowrap; }
-nav.toc a {
-  display: block; padding: 11px 10px; font: 500 13.5px/1 var(--font-body); color: var(--ink-2);
-  text-decoration: none; border-bottom: 2px solid transparent;
-}
-nav.toc a:hover { color: var(--ink); }
-nav.toc a[aria-current="true"] { color: var(--cp); border-bottom-color: var(--cp); }
-
-/* ---------- sections ---------- */
-section { padding-block: 40px 8px; scroll-margin-top: 52px; }
-.eyebrow { font: 600 12px/1 var(--font-body); letter-spacing: .09em; text-transform: uppercase; color: var(--ink-2); margin: 0 0 8px; }
-h2 { font: 700 30px/1.1 var(--font-display); margin: 0 0 8px; text-wrap: balance; }
-h3 { font: 600 17px/1.25 var(--font-display); margin: 0 0 10px; letter-spacing: .005em; text-wrap: balance; }
-.say { margin: 0 0 18px; max-width: 70ch; color: var(--ink-2); }
-.stack { display: grid; gap: 16px; }
-.grid { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(min(300px, 100%), 1fr)); }
-.grid > *, .stack > * { min-width: 0; }
-.grid-3 { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(min(240px, 100%), 1fr)); }
-.grid-3 > * { min-width: 0; }
-
-.card { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; }
-.card.cp { border-top: 3px solid var(--cp); }
-.card.dp { border-top: 3px solid var(--dp); }
-.card .note { margin: 10px 0 0; font-size: 13px; color: var(--ink-2); }
-.card h3 .tag { margin-left: 6px; vertical-align: 2px; }
-
-figure.fig { margin: 0; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; }
-figure.fig .scroll { overflow-x: auto; padding: 10px 6px 4px; }
-figure.fig svg { display: block; width: 100%; height: auto; }
-figure.fig figcaption { padding: 4px 16px 12px; font-size: 13px; color: var(--ink-2); }
-.hint { display: none; font-size: 12px; color: var(--ink-2); padding: 8px 16px 0; }
-@media (max-width: 760px) { .hint { display: block; } }
-
-/* chips */
-.chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 0; padding: 0; list-style: none; }
-.chip {
-  display: inline-flex; align-items: center; gap: 6px; max-width: 100%;
-  font: 500 12px/1.35 var(--font-mono); padding: 3px 9px; border-radius: 999px;
-  background: var(--surface-2); border: 1px solid var(--line); color: var(--ink); overflow-wrap: anywhere;
-}
-.chip.t { font-family: var(--font-body); font-size: 12.5px; }
-.chip.cp { background: var(--cp-tint); border-color: color-mix(in srgb, var(--cp) 45%, transparent); color: var(--cp); }
-.chip.dp { background: var(--dp-tint); border-color: color-mix(in srgb, var(--dp) 45%, transparent); color: var(--dp); }
-.chip.ok { background: var(--ok-tint); border-color: color-mix(in srgb, var(--ok) 45%, transparent); color: var(--ok); }
-.chip.bad { background: var(--bad-tint); border-color: color-mix(in srgb, var(--bad) 45%, transparent); color: var(--bad); }
-.chip.run { background: var(--run-tint); border-color: color-mix(in srgb, var(--run) 45%, transparent); color: var(--run); }
-.chip.mute { background: var(--mute-tint); color: var(--mute); }
-.chip.plan { background: transparent; border-style: dashed; color: var(--ink-2); }
-.legend { display: flex; flex-wrap: wrap; gap: 6px 14px; padding: 0 16px 12px; font-size: 12.5px; color: var(--ink-2); }
+code { font-family: var(--font-mono); font-size: .88em; background: var(--surface-2); border: 1px solid var(--line-2);
+  padding: 0 4px; border-radius: 4px; overflow-wrap: anywhere; }
+.eyebrow { font: 600 12px var(--font-mono); letter-spacing: .08em; color: var(--ink-2); text-transform: uppercase; }
+header.top { display: grid; gap: 12px; margin-bottom: 18px; }
+.lead { color: var(--ink-2); font-size: 16.5px; }
+nav.toc { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; background: var(--bg);
+  border-bottom: 1px solid var(--line); padding: 8px 0; display: flex; gap: 6px; flex-wrap: wrap; }
+nav.toc a { font: 600 12.5px var(--font-body); text-decoration: none; color: var(--ink); padding: 4px 10px;
+  border: 1px solid var(--line); border-radius: 999px; background: var(--surface); white-space: nowrap; }
+nav.toc a:hover, nav.toc a:focus-visible { border-color: var(--cp); color: var(--cp); outline: none; }
+section { margin-top: 46px; display: grid; gap: 16px; scroll-margin-top: 60px; }
+.sec-head { display: grid; gap: 6px; }
+.sec-head .n { font: 700 13px var(--font-mono); color: var(--cp); }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 16px; min-width: 0; }
+.grid { display: grid; gap: 12px; }
+.g2 { grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); }
+.g3 { grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); }
+.g5 { grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); }
+.piece { display: grid; grid-template-columns: 72px 1fr; gap: 12px; align-items: start; }
+.piece svg { width: 72px; height: 56px; color: var(--ink); }
+.piece h3 { font-size: 16px; margin-bottom: 2px; }
+.piece .what { color: var(--ink-2); font-size: 13.5px; }
+.piece .ours { font-size: 13.5px; margin-top: 6px; padding-top: 6px; border-top: 1px dashed var(--line); }
+.ic-s { fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linejoin: round; }
+.ic-l { fill: none; stroke: currentColor; stroke-width: 1.4; opacity: .6; }
+.ic-f { fill: var(--cp); }
+.ic-a { fill: var(--ok); }
+.ic-a2 { fill: none; stroke: var(--cp); stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+.ic-t { font: 600 10px var(--font-mono); fill: currentColor; }
+.ic-t2 { font: 600 9px var(--font-mono); fill: var(--cp); }
+.fig { overflow-x: auto; margin: 0; }
+.fig svg { display: block; width: 100%; height: auto; min-width: 760px; }
+.fig.narrow svg { min-width: 600px; }
+figcaption { color: var(--ink-2); font-size: 13.5px; margin-top: 6px; }
+.legend { display: flex; flex-wrap: wrap; gap: 8px 16px; font-size: 13px; color: var(--ink-2); }
 .legend span { display: inline-flex; align-items: center; gap: 6px; }
-.legend i { width: 14px; height: 10px; border-radius: 3px; display: inline-block; border: 1.5px solid var(--line); }
-.legend i.cp { background: var(--cp-tint); border-color: var(--cp); }
-.legend i.dp { background: var(--dp-tint); border-color: var(--dp); }
-.legend i.n { background: var(--surface); border-color: var(--ink-2); }
-.legend i.pl { background: transparent; border-style: dashed; border-color: var(--ink-2); }
-
-.label { font: 600 12.5px/1.2 var(--font-body); letter-spacing: .01em; color: var(--ink-2); margin: 0 0 8px; }
-.grid.api { grid-template-columns: repeat(auto-fit, minmax(min(440px, 100%), 1fr)); }
-.grid.top { align-items: start; }
-.row-gap > * + * { margin-top: 12px; }
-
-/* compact key-value list */
-dl.kv { margin: 0; display: grid; grid-template-columns: minmax(0, auto) minmax(0, 1fr); gap: 6px 14px; font-size: 13.5px; }
-dl.kv dt { font-family: var(--font-mono); font-size: 12.5px; color: var(--ink); white-space: nowrap; }
-dl.kv dd { margin: 0; color: var(--ink-2); min-width: 0; }
-@media (max-width: 480px) {
-  dl.kv { grid-template-columns: minmax(0, 1fr); gap: 2px; }
-  dl.kv dd { margin-bottom: 6px; }
-  dl.kv dt { white-space: normal; overflow-wrap: anywhere; }
-}
-
+.legend i { width: 22px; height: 3px; border-radius: 2px; display: inline-block; }
+/* map */
+.zone { fill: none; stroke: var(--line); stroke-width: 1.4; stroke-dasharray: 6 5; }
+.zl { font: 600 10.5px var(--font-body); fill: var(--ink-2); letter-spacing: .06em; }
+.bx rect { fill: var(--surface-2); stroke: var(--line); stroke-width: 1.2; }
+.bx .t { font: 600 13px var(--font-body); fill: var(--ink); }
+.bx .s { font: 10.5px var(--font-mono); fill: var(--ink-2); }
+.bx.off { opacity: .3; }
+.bx.on.k-ci rect { fill: var(--cp-tint); stroke: var(--cp); stroke-width: 2.2; }
+.bx.on.k-run rect { fill: var(--dp-tint); stroke: var(--dp); stroke-width: 2.2; }
+.bx.on.k-db rect { fill: var(--db-tint); stroke: var(--db); stroke-width: 2.2; }
+.bx.on.k-rd rect { fill: var(--rd-tint); stroke: var(--rd); stroke-width: 2.2; }
+.bx.on.k-other rect { fill: var(--mute-tint); stroke: var(--mute); stroke-width: 2.2; }
+.ar { fill: none; stroke-width: 2.4; stroke-linecap: round; }
+.p-grpc { --c: var(--cp); } .p-sql { --c: var(--db); } .p-redis { --c: var(--rd); } .p-http { --c: var(--mute); } .p-docker { --c: var(--dp); }
+.ar { stroke: var(--c); }
+.ar.p-redis { stroke-dasharray: 5 4; }
+.mk { fill: var(--c); }
+.al { font: 600 11.5px var(--font-body); fill: var(--c); paint-order: stroke; stroke: var(--surface); stroke-width: 4px; stroke-linejoin: round; }
+.badge rect { fill: var(--c); }
+.badge text { font: 700 10.5px var(--font-mono); fill: var(--on-fill); }
+.leg-grpc { background: var(--cp); } .leg-sql { background: var(--db); } .leg-redis { background: repeating-linear-gradient(90deg, var(--rd) 0 5px, transparent 5px 9px); }
+.leg-http { background: var(--mute); } .leg-docker { background: var(--dp); }
+/* steps */
+.steps { display: grid; gap: 18px; counter-reset: s; }
+.step { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 16px; display: grid; gap: 12px; min-width: 0; }
+.step-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.num { flex: none; width: 38px; height: 38px; border-radius: 50%; background: var(--cp); color: var(--on-fill);
+  display: grid; place-items: center; font: 700 17px var(--font-mono); }
+.step-head h3 { font-size: 19px; flex: 1 1 260px; }
+h3 b { font-weight: inherit; color: var(--cp); }
+td.port { font-family: var(--font-mono); font-size: 12.5px; white-space: normal; }
+.st { font: 600 11.5px var(--font-body); padding: 2px 9px; border-radius: 999px; border: 1px solid; white-space: nowrap; }
+.st-main { color: var(--ok); border-color: var(--ok); background: var(--ok-tint); }
+.st-pr { color: var(--warn); border-color: var(--warn); background: var(--warn-tint); }
+.st-rev { color: var(--cp); border-color: var(--cp); background: var(--cp-tint); }
+.st-plan { color: var(--mute); border-color: var(--mute); background: var(--mute-tint); }
+.step-body { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+@media (max-width: 820px) { .step-body { grid-template-columns: 1fr; } }
+ol.what { margin: 0; padding-left: 20px; display: grid; gap: 6px; }
+ol.what li::marker { color: var(--cp); font-weight: 700; }
+.facts { display: grid; gap: 8px; align-content: start; }
+.fact { display: grid; grid-template-columns: 96px 1fr; gap: 8px; font-size: 13.5px; padding: 8px 10px; border-radius: 8px; background: var(--surface-2); border: 1px solid var(--line-2); }
+.fact b { font: 600 11px var(--font-body); text-transform: uppercase; letter-spacing: .05em; color: var(--ink-2); padding-top: 2px; }
+.fact span { font-family: var(--font-mono); font-size: 12.5px; overflow-wrap: anywhere; }
 /* tables */
-.tbl { overflow-x: auto; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); }
-table { border-collapse: collapse; width: 100%; font-size: 13.5px; }
-th, td { text-align: left; padding: 8px 12px; border-bottom: 1px solid var(--line-2); vertical-align: top; }
-th { font: 600 12.5px/1.2 var(--font-body); letter-spacing: .01em; color: var(--ink-2); background: var(--surface-2); }
-tr:last-child td { border-bottom: 0; }
-td code { font-size: 12px; }
-td.k { font-family: var(--font-mono); font-size: 12.5px; white-space: nowrap; }
-.tbl.min table { min-width: 620px; }
-
-/* API cards */
-.svc { display: flex; flex-direction: column; gap: 10px; }
-.svc-h { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 6px 10px; }
-.svc-h h3 { margin: 0; font-family: var(--font-mono); font-size: 14.5px; font-weight: 600; overflow-wrap: anywhere; }
-.port { font: 600 12px/1 var(--font-mono); padding: 4px 9px; border-radius: 999px; color: var(--on-fill); }
-.port.cp { background: var(--cp); }
-.port.dp { background: var(--dp); }
+.tbl { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; min-width: 640px; font-size: 14px; background: var(--surface); }
+th, td { text-align: left; padding: 9px 10px; border-bottom: 1px solid var(--line-2); vertical-align: top; }
+th { font: 600 11.5px var(--font-body); text-transform: uppercase; letter-spacing: .05em; color: var(--ink-2); background: var(--surface-2); }
+td:first-child { font-weight: 600; white-space: nowrap; }
+.kind { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 6px; vertical-align: middle; }
+/* generic diagrams */
+.dg text { fill: var(--ink); font: 12.5px var(--font-body); }
+.dg .mono { font: 11.5px var(--font-mono); fill: var(--ink-2); }
+.dg .h { font: 600 13px var(--font-body); }
+.dg .small { font-size: 11px; fill: var(--ink-2); }
+.dg .frame { fill: none; stroke: var(--line); stroke-width: 1.4; stroke-dasharray: 6 5; }
+.dg .box { fill: var(--surface-2); stroke: var(--line); stroke-width: 1.3; }
+.dg .box-ci { fill: var(--cp-tint); stroke: var(--cp); stroke-width: 2; }
+.dg .box-run { fill: var(--dp-tint); stroke: var(--dp); stroke-width: 2; }
+.dg .box-db { fill: var(--db-tint); stroke: var(--db); stroke-width: 2; }
+.dg .box-rd { fill: var(--rd-tint); stroke: var(--rd); stroke-width: 2; }
+.dg .tbl-h { fill: var(--db); }
+.dg .tbl-ht { fill: var(--on-fill); font: 600 12px var(--font-mono); }
+.dg .new { fill: var(--cp); font: 600 10px var(--font-body); }
+.dg .ok { fill: var(--ok); } .dg .bad { fill: var(--bad); } .dg .warnc { fill: var(--warn); }
+.dg .line { fill: none; stroke: var(--ink-2); stroke-width: 1.4; }
+.dg .tick { stroke: var(--line); stroke-width: 1; }
+.dg .bar-run { fill: var(--dp); } .dg .bar-ci { fill: var(--cp); } .dg .bar-mute { fill: var(--mute); } .dg .bar-rd { fill: var(--rd); }
+.dg .n-badge { fill: var(--ink); } .dg .n-badge-t { fill: var(--surface); font: 700 11px var(--font-mono); }
+.limits { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px; }
+.limit { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 12px; display: grid; gap: 4px; }
+.limit .v { font: 700 24px var(--font-display); color: var(--dp); }
+.limit .k { font-size: 13px; color: var(--ink-2); }
+ol.steps-plain { margin: 0; padding-left: 22px; display: grid; gap: 8px; }
+ol.steps-plain li::marker { font-weight: 700; color: var(--dp); }
+.api { display: grid; gap: 8px; align-content: start; }
+.api-h { display: flex; justify-content: space-between; gap: 8px; flex-wrap: wrap; align-items: baseline; }
+.api-h h3 { font-family: var(--font-mono); font-size: 15px; }
+.api ul { margin: 0; padding: 0; list-style: none; display: grid; gap: 5px; }
+.api li { display: grid; grid-template-columns: auto 1fr; gap: 4px 10px; font-size: 13.5px; align-items: baseline; }
+.api li code { white-space: nowrap; font-size: 12px; }
+@media (max-width: 520px) { .api li { grid-template-columns: 1fr; } }
+.api li code { justify-self: start; }
 .who { font-size: 12.5px; color: var(--ink-2); }
-ul.rpc { list-style: none; margin: 0; padding: 0; display: grid; gap: 5px; }
-ul.rpc li { display: grid; grid-template-columns: minmax(0, 13.5em) minmax(0, 1fr); gap: 10px; font-size: 13px; align-items: baseline; }
-ul.rpc code { font-size: 12.5px; color: var(--ink); overflow-wrap: anywhere; }
-ul.rpc span { color: var(--ink-2); }
-@media (max-width: 480px) { ul.rpc li { grid-template-columns: minmax(0, 1fr); gap: 0; } }
-
-/* steppers */
-ol.steps { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; grid-template-columns: repeat(auto-fit, minmax(min(200px, 100%), 1fr)); counter-reset: s; }
-ol.steps li { counter-increment: s; position: relative; padding: 10px 12px 10px 42px; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; font-size: 13px; color: var(--ink-2); min-width: 0; }
-ol.steps li::before {
-  content: counter(s); position: absolute; left: 12px; top: 10px; width: 20px; height: 20px; border-radius: 50%;
-  display: grid; place-items: center; font: 600 11.5px/1 var(--font-mono); background: var(--cp); color: var(--on-fill);
-}
-ol.steps.dp li::before { background: var(--dp); }
-ol.steps li b { display: block; color: var(--ink); font-weight: 600; font-size: 13.5px; }
-
-.flowrow { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
-.flowrow .arr { color: var(--ink-2); font-size: 13px; }
-
-.status { font: 600 11px/1 var(--font-body); letter-spacing: .06em; text-transform: uppercase; padding: 5px 9px; border-radius: 999px; border: 1px solid; white-space: nowrap; }
-.status.prog { color: var(--run); background: var(--run-tint); border-color: color-mix(in srgb, var(--run) 50%, transparent); }
-.status.plan { color: var(--ink-2); border-style: dashed; border-color: var(--ink-2); }
-.road { display: flex; flex-direction: column; gap: 10px; }
-.road-h { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; flex-wrap: wrap; }
-.road-h h3 { margin: 0; }
-.road .num { font: 600 13px/1 var(--font-mono); color: var(--ink-2); }
-
-.warn { display: flex; gap: 10px; align-items: flex-start; padding: 10px 12px; border-radius: 8px; background: var(--bad-tint); color: var(--ink); font-size: 13.5px; border: 1px solid color-mix(in srgb, var(--bad) 35%, transparent); }
-.warn b { color: var(--bad); }
-
-footer { padding-block: 40px 48px; color: var(--ink-2); font-size: 12.5px; }
-footer .chips { margin-top: 8px; }
-
-/* ---------- SVG vocabulary (all colours from tokens, so both themes read) ---------- */
-.sv-t  { font: 600 13px var(--font-body); fill: var(--ink); }
-.sv-tl { font: 700 18px var(--font-display); fill: var(--cp); }
-.sv-s  { font: 400 11px var(--font-body); fill: var(--ink-2); }
-.sv-m  { font: 500 11px var(--font-mono); fill: var(--ink); }
-.sv-ms { font: 500 10px var(--font-mono); fill: var(--ink-2); }
-.sv-mb { font: 600 12px var(--font-mono); fill: var(--ink); }
-.sv-z  { font: 600 10.5px var(--font-body); letter-spacing: .09em; fill: var(--ink-2); }
-.sv-z.dp, .sv-t.dp { fill: var(--dp); }
-.sv-t.cp { fill: var(--cp); }
-.sv-bad { font: 600 10.5px var(--font-mono); fill: var(--bad); }
-.nd     { fill: var(--surface); stroke: var(--line); stroke-width: 1.3; }
-.nd-k   { fill: var(--surface); stroke: var(--ink-2); stroke-width: 1.3; }
-.nd-cp  { fill: var(--cp-tint); stroke: var(--cp); stroke-width: 1.4; }
-.nd-dp  { fill: var(--dp-tint); stroke: var(--dp); stroke-width: 1.4; }
-.nd-dpd { fill: var(--dp-tint); stroke: var(--dp); stroke-width: 1.3; stroke-dasharray: 5 4; }
-.nd-plan{ fill: var(--surface); stroke: var(--ink-2); stroke-width: 1.2; stroke-dasharray: 5 4; }
-.nd-ok  { fill: var(--ok-tint); stroke: var(--ok); stroke-width: 1.4; }
-.nd-bad { fill: var(--bad-tint); stroke: var(--bad); stroke-width: 1.4; }
-.nd-run { fill: var(--run-tint); stroke: var(--run); stroke-width: 1.4; }
-.nd-mute{ fill: var(--mute-tint); stroke: var(--mute); stroke-width: 1.2; }
-.nd-skip{ fill: var(--mute-tint); stroke: var(--mute); stroke-width: 1.2; stroke-dasharray: 4 3; }
-.zone   { fill: none; stroke: var(--ink-2); stroke-width: 1.2; stroke-dasharray: 7 5; }
-.zone-dp{ fill: var(--dp-tint); fill-opacity: .4; stroke: var(--dp); stroke-width: 1.2; stroke-dasharray: 7 5; }
-.chipr  { fill: var(--surface); stroke: var(--cp); stroke-opacity: .5; stroke-width: 1; }
-.pill-cp{ fill: var(--cp); }
-.pill-dp{ fill: var(--dp); }
-.pill-t { font: 600 11.5px var(--font-mono); fill: var(--on-fill); }
-.bd-n   { fill: var(--ink-2); }
-.bd-cp  { fill: var(--cp); }
-.bd-dp  { fill: var(--dp); }
-.bd-t   { font: 600 11px var(--font-mono); fill: var(--on-fill); }
-.st-t   { font: 600 12px var(--font-mono); }
-.st-t.ok { fill: var(--ok); } .st-t.bad { fill: var(--bad); } .st-t.run { fill: var(--run); }
-.st-t.mute { fill: var(--mute); } .st-t.k { fill: var(--ink); }
-.ar     { fill: none; stroke: var(--ink-2); stroke-width: 1.4; marker-end: url(#m-ink); }
-.ar.cp  { stroke: var(--cp); marker-end: url(#m-cp); }
-.ar.dp  { stroke: var(--dp); marker-end: url(#m-dp); }
-.ar.pl  { stroke-dasharray: 5 4; }
-.ln     { fill: none; stroke: var(--ink-2); stroke-width: 1.4; }
-.ln.bad { stroke: var(--bad); }
-.ln.faint { stroke: var(--line); stroke-dasharray: 3 4; }
-.mk-ink { fill: var(--ink-2); } .mk-cp { fill: var(--cp); } .mk-dp { fill: var(--dp); }
-.axis   { stroke: var(--line); stroke-width: 1.4; }
-.tick   { stroke: var(--ink-2); stroke-width: 1; }
-.bar-cp { fill: var(--cp); fill-opacity: .22; }
-.dot-n  { fill: var(--ink-2); }
-.dot-cp { fill: var(--cp); }
-</style>
-</head>
-<body>
-
-<!-- Shared arrowheads for every diagram on the page -->
-<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
-  <defs>
-    <marker id="m-ink" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" markerUnits="userSpaceOnUse" orient="auto-start-reverse"><path class="mk-ink" d="M0,0 L10,5 L0,10 z"/></marker>
-    <marker id="m-cp" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" markerUnits="userSpaceOnUse" orient="auto-start-reverse"><path class="mk-cp" d="M0,0 L10,5 L0,10 z"/></marker>
-    <marker id="m-dp" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" markerUnits="userSpaceOnUse" orient="auto-start-reverse"><path class="mk-dp" d="M0,0 L10,5 L0,10 z"/></marker>
-  </defs>
-</svg>
-
-<header class="top">
-  <div class="wrap">
-    <div class="kicker">
-      <span>CI şeridi · WBS-10</span>
-      <span class="sw" lang="en"><i style="background:var(--cp)"></i>ci-svc</span>
-      <span class="sw" lang="en"><i style="background:var(--dp)"></i>git2-runner</span>
-    </div>
-    <h1>git2 CI Mimarisi</h1>
-    <p class="lede">Bir push'un pipeline'a, pipeline'ın bir build host'taki konteynere dönüşmesi: kim kimi çağırır, ne nerede durur.</p>
-    <div class="facts" role="list">
-      <div class="fact" role="listitem"><b>2 program</b><span><code>ci-svc</code> · <code>git2-runner</code></span></div>
-      <div class="fact" role="listitem"><b>2 port</b><span><code>:9090</code> iç · <code>:9091</code> runner</span></div>
-      <div class="fact" role="listitem"><b>5 servis · 21 RPC</b><span>4 × <code>ci.v1</code> + <code>EventSink</code></span></div>
-      <div class="fact" role="listitem"><b>8 tablo</b><span>şema <code>ci_svc</code></span></div>
-      <div class="fact" role="listitem"><b>10 ADR</b><span><code>0001</code>–<code>0010</code></span></div>
-    </div>
-    <p class="src">Kaynak: <code>git2-runner</code>, dal <code>feat/runner-leftovers</code> (main + bugün birleşen 2 onaylı PR) · 19 Kasım 2026, W4</p>
-  </div>
-</header>
-
-<nav class="toc" aria-label="Bölümler">
-  <div class="wrap">
-    <ul>
-      <li><a href="#mimari">Mimari</a></li>
-      <li><a href="#akis">Push → pipeline</a></li>
-      <li><a href="#durumlar">Durumlar</a></li>
-      <li><a href="#konteyner">Konteyner</a></li>
-      <li><a href="#modlar">Modlar</a></li>
-      <li><a href="#api">API haritası</a></li>
-      <li><a href="#yardimcilar">Yardımcılar</a></li>
-      <li><a href="#yolda">Yolda</a></li>
-    </ul>
-  </div>
-</nav>
-
-<main>
-
-<!-- ============ 1. MİMARİ ============ -->
-<section id="mimari">
-  <div class="wrap stack">
-    <div>
-      <p class="eyebrow">Kim kimi çağırır?</p>
-      <h2>Genel mimari</h2>
-      <p class="say">ci-svc kontrol düzlemidir ve tüm durumu Postgres'te tutar. Runner build host'ta çalışır, yalnızca dışarı doğru <code>:9091</code>'e bağlanır.</p>
-    </div>
-
-    <figure class="fig">
-      <p class="hint">Şema geniş: yana kaydırın.</p>
-      <div class="scroll">
-        <svg viewBox="0 0 1140 600" style="min-width:860px" role="img" aria-label="Mimari: tarayıcı gateway üzerinden dash-api ve admin-api'ye gider; bunlar ci-svc'nin 9090 iç portunu çağırır. git-svc push olayını EventSink.Deliver ile 9090'a iter, ci-svc .git2-ci.yml dosyasını GetBlob ile okur. ci-svc PostgreSQL ve Redis kullanır. Ayrı bir build host'taki git2-runner dışarı doğru 9091 runner portuna bağlanır ve Docker Engine üzerinden git2-job konteynerleri çalıştırır.">
-          <!-- instance zone -->
-          <rect class="zone" x="165" y="14" width="625" height="572" rx="14"/>
-          <text class="sv-z" x="183" y="36">GIT2 INSTANCE AĞI</text>
-
-          <!-- browser -->
-          <text class="sv-z" x="80" y="214" text-anchor="middle">TARAYICI</text>
-          <rect class="nd" x="25" y="228" width="110" height="40" rx="8"/>
-          <text class="sv-m" x="80" y="252" text-anchor="middle">dash-web</text>
-          <rect class="nd" x="25" y="290" width="110" height="40" rx="8"/>
-          <text class="sv-m" x="80" y="314" text-anchor="middle">admin-web</text>
-          <path class="ar" d="M135,248 H193"/>
-          <path class="ar" d="M135,310 H193"/>
-
-          <!-- gateway -->
-          <rect class="nd" x="195" y="225" width="110" height="110" rx="10"/>
-          <text class="sv-t" x="250" y="274" text-anchor="middle">gateway</text>
-          <text class="sv-s" x="250" y="291" text-anchor="middle">REST · Ceyda</text>
-          <path class="ar" d="M305,255 H325 V238 H343"/>
-          <path class="ar" d="M305,305 H325 V323 H343"/>
-
-          <!-- dash-api / admin-api -->
-          <rect class="nd" x="345" y="215" width="120" height="46" rx="8"/>
-          <text class="sv-t" x="405" y="236" text-anchor="middle">dash-api</text>
-          <text class="sv-s" x="405" y="252" text-anchor="middle">Dash · Bilge</text>
-          <text class="sv-ms" x="405" y="279" text-anchor="middle">Pipeline · Secret</text>
-          <rect class="nd" x="345" y="300" width="120" height="46" rx="8"/>
-          <text class="sv-t" x="405" y="321" text-anchor="middle">admin-api</text>
-          <text class="sv-s" x="405" y="337" text-anchor="middle">Konsol · Beste</text>
-          <text class="sv-ms" x="405" y="364" text-anchor="middle">RunnerAdmin · Secret</text>
-          <path class="ar" d="M465,238 H484 V268 H500"/>
-          <path class="ar" d="M465,323 H484 V280 H500"/>
-
-          <!-- git-svc -->
-          <rect class="nd" x="545" y="40" width="190" height="66" rx="10"/>
-          <text class="sv-t" x="640" y="64" text-anchor="middle">git-svc</text>
-          <text class="sv-s" x="640" y="81" text-anchor="middle">codeplane · Apo</text>
-          <text class="sv-ms" x="640" y="97" text-anchor="middle">outbox → relay</text>
-          <path class="ar" d="M600,106 V168"/>
-          <text class="sv-m" x="592" y="132" text-anchor="end">Deliver</text>
-          <text class="sv-s" x="592" y="147" text-anchor="end">RepositoryPushed</text>
-          <path class="ar cp" d="M690,168 V108"/>
-          <text class="sv-m" x="698" y="132">GetBlob</text>
-          <text class="sv-s" x="698" y="147">.git2-ci.yml</text>
-
-          <!-- ci-svc -->
-          <rect class="nd-cp" x="530" y="170" width="220" height="250" rx="12"/>
-          <text class="sv-tl" x="640" y="195" text-anchor="middle">ci-svc</text>
-          <text class="sv-s" x="640" y="211" text-anchor="middle">durumsuz · 1+ replika</text>
-          <rect class="chipr" x="566" y="224" width="148" height="22" rx="6"/><text class="sv-ms" x="640" y="239" text-anchor="middle">EventSink → inbox</text>
-          <rect class="chipr" x="566" y="252" width="148" height="22" rx="6"/><text class="sv-ms" x="640" y="267" text-anchor="middle">inbox worker</text>
-          <rect class="chipr" x="566" y="280" width="148" height="22" rx="6"/><text class="sv-ms" x="640" y="295" text-anchor="middle">pipeline · iş kuyruğu</text>
-          <rect class="chipr" x="566" y="308" width="148" height="22" rx="6"/><text class="sv-ms" x="640" y="323" text-anchor="middle">reaper · 15 sn</text>
-          <rect class="chipr" x="566" y="336" width="148" height="22" rx="6"/><text class="sv-ms" x="640" y="351" text-anchor="middle">secrets · AES-256-GCM</text>
-          <rect class="chipr" x="566" y="364" width="148" height="22" rx="6"/><text class="sv-ms" x="640" y="379" text-anchor="middle">outbox · olaylar</text>
-          <rect class="pill-cp" x="502" y="262" width="56" height="24" rx="12"/>
-          <text class="pill-t" x="530" y="278" text-anchor="middle">:9090</text>
-          <rect class="pill-dp" x="722" y="262" width="56" height="24" rx="12"/>
-          <text class="pill-t" x="750" y="278" text-anchor="middle">:9091</text>
-
-          <!-- stores -->
-          <path class="ar cp" d="M560,420 V468"/>
-          <text class="sv-s" x="568" y="448">okur · yazar</text>
-          <path class="ar cp" d="M710,420 V468"/>
-          <text class="sv-s" x="718" y="448">pub/sub</text>
-          <path class="ar cp pl" d="M530,396 H380 V468"/>
-          <text class="sv-s" x="455" y="389" text-anchor="middle">log · artifact (W6)</text>
-          <rect class="nd" x="470" y="470" width="160" height="74" rx="10"/>
-          <text class="sv-t" x="550" y="494" text-anchor="middle">PostgreSQL</text>
-          <text class="sv-m" x="550" y="511" text-anchor="middle">şema ci_svc</text>
-          <text class="sv-s" x="550" y="528" text-anchor="middle">durum + iş kuyruğu</text>
-          <rect class="nd" x="650" y="470" width="120" height="74" rx="10"/>
-          <text class="sv-t" x="710" y="494" text-anchor="middle">Redis (ortak)</text>
-          <text class="sv-m" x="710" y="511" text-anchor="middle">ci:*</text>
-          <text class="sv-s" x="710" y="528" text-anchor="middle">yalnız uyandırma</text>
-          <rect class="nd-plan" x="320" y="470" width="120" height="74" rx="10"/>
-          <text class="sv-t" x="380" y="494" text-anchor="middle">bucket</text>
-          <text class="sv-m" x="380" y="511" text-anchor="middle">ci/</text>
-          <text class="sv-s" x="380" y="528" text-anchor="middle">planlanan · W6</text>
-
-          <!-- runner link -->
-          <path class="ar dp" d="M892,274 H780"/>
-          <text class="sv-ms" x="836" y="266" text-anchor="middle">gRPC + TLS</text>
-          <text class="sv-s" x="836" y="291" text-anchor="middle">dışarı arar</text>
-
-          <!-- build host -->
-          <rect class="zone-dp" x="872" y="150" width="250" height="420" rx="14"/>
-          <text class="sv-z dp" x="890" y="174">BUILD HOST · AYRI VM</text>
-          <rect class="nd-dp" x="894" y="240" width="206" height="68" rx="10"/>
-          <text class="sv-t" x="997" y="264" text-anchor="middle">git2-runner</text>
-          <text class="sv-s" x="997" y="281" text-anchor="middle">tek iş, sırayla</text>
-          <text class="sv-s" x="997" y="297" text-anchor="middle">elinde yalnız kendi token'ı</text>
-          <path class="ar dp" d="M997,308 V360"/>
-          <text class="sv-s" x="1005" y="338">Engine API</text>
-          <rect class="nd" x="894" y="362" width="206" height="54" rx="10"/>
-          <text class="sv-t" x="997" y="385" text-anchor="middle">Docker Engine</text>
-          <text class="sv-s" x="997" y="402" text-anchor="middle">DOCKER_HOST ya da yerel</text>
-          <path class="ar dp" d="M997,416 V456"/>
-          <text class="sv-s" x="1005" y="440">oluşturur · siler</text>
-          <rect class="nd-dp" x="922" y="468" width="170" height="36" rx="8" opacity=".6"/>
-          <rect class="nd-dp" x="912" y="458" width="170" height="36" rx="8"/>
-          <text class="sv-m" x="997" y="481" text-anchor="middle">git2-job-&lt;job_id&gt;</text>
-          <text class="sv-s" x="997" y="528" text-anchor="middle">iş başına konteyner + ağ + volume</text>
-          <text class="sv-ms" x="997" y="545" text-anchor="middle">io.git2.runner-id</text>
-        </svg>
-      </div>
-      <div class="legend">
-        <span><i class="cp"></i>ci-svc · <code>:9090</code> iç port</span>
-        <span><i class="dp"></i>runner tarafı · <code>:9091</code> runner portu</span>
-        <span><i class="n"></i>diğer şeritler</span>
-        <span><i class="pl"></i>planlanan</span>
-      </div>
-      <figcaption>Ok yönü = kim çağırır. Tarayıcılar ve runner'lar ci-svc'ye gateway'den geçmez; build host'a veritabanı, Redis ya da bucket erişimi verilmez.</figcaption>
-    </figure>
-
-    <div class="grid-3">
-      <div class="card">
-        <h3>PostgreSQL · <code>ci_svc</code></h3>
-        <ul class="chips">
-          <li class="chip">runners</li><li class="chip">registration_tokens</li><li class="chip">pipelines</li>
-          <li class="chip">jobs</li><li class="chip">job_log_chunks</li><li class="chip">secrets</li>
-          <li class="chip">outbox</li><li class="chip">inbox</li>
-        </ul>
-        <p class="note">Tek doğruluk kaynağı; kuyruk da burada. Migrasyonlar git2'de (<code>003</code>, <code>006</code>); ci-svc şemayı değiştirmez, açılışta kontrol eder.</p>
-      </div>
-      <div class="card">
-        <h3>Redis · yalnız sinyal</h3>
-        <ul class="chips">
-          <li class="chip cp">ci:jobs:wake</li><li class="chip cp">ci:inbox:wake</li>
-          <li class="chip cp">ci:log:&lt;job_id&gt;</li><li class="chip cp">ci:rl:register:&lt;ip&gt;</li>
-        </ul>
-        <p class="note">Sinyal veri taşımaz. Kaybolursa runner 3 sn'de, log izleyici 1 sn'de bir Postgres'e bakar. Yedeklenmez.</p>
-      </div>
-      <div class="card">
-        <h3>Kimde ne var</h3>
-        <dl class="kv">
-          <dt>ci-svc</dt><dd><code>POSTGRES_DSN</code>, <code>REDIS_ADDR</code>, <code>GIT2_CI_SECRETS_KEY</code></dd>
-          <dt>git2-runner</dt><dd>yalnız runner token'ı (<code>g2r_…</code>, dosya izni 0600)</dd>
-          <dt>iş</dt><dd>kendi secret'ları, yalnız iş sürerken; diske yazılmaz</dd>
-        </dl>
-      </div>
-    </div>
-  </div>
-</section>
-
-<!-- ============ 2. AKIŞ ============ -->
-<section id="akis">
-  <div class="wrap stack">
-    <div>
-      <p class="eyebrow">Push'tan sonra ne olur?</p>
-      <h2>Push → pipeline akışı</h2>
-      <p class="say">codeplane olayı ci-svc'nin inbox'ına iter; gerisini ci-svc kendi işçisiyle yapar. Kimse push için <code>TriggerPipeline</code> çağırmaz.</p>
-    </div>
-
-    <figure class="fig">
-      <p class="hint">Şema geniş: yana kaydırın.</p>
-      <div class="scroll">
-        <svg viewBox="0 0 1100 284" style="min-width:900px" role="img" aria-label="On adım: git push, outbox ve relay, EventSink.Deliver, ci_svc.inbox, inbox worker, GetBlob, pipeline ve işler, RequestJob long poll, konteyner, log ve sonuç.">
-          <!-- row 1 -->
-          <rect class="nd" x="20" y="30" width="184" height="84" rx="10"/>
-          <circle class="bd-n" cx="40" cy="50" r="11"/><text class="bd-t" x="40" y="54" text-anchor="middle">1</text>
-          <text class="sv-mb" x="58" y="55">git push</text>
-          <text class="sv-s" x="34" y="80">git-svc · codeplane</text>
-          <text class="sv-s" x="34" y="98">branch ya da tag</text>
-
-          <rect class="nd" x="239" y="30" width="184" height="84" rx="10"/>
-          <circle class="bd-n" cx="259" cy="50" r="11"/><text class="bd-t" x="259" y="54" text-anchor="middle">2</text>
-          <text class="sv-t" x="277" y="55">outbox → relay</text>
-          <text class="sv-ms" x="253" y="80">git_svc.outbox</text>
-          <text class="sv-s" x="253" y="98">codeplane relay'i iter</text>
-
-          <rect class="nd-cp" x="458" y="30" width="184" height="84" rx="10"/>
-          <circle class="bd-cp" cx="478" cy="50" r="11"/><text class="bd-t" x="478" y="54" text-anchor="middle">3</text>
-          <text class="sv-mb" x="496" y="55">EventSink.Deliver</text>
-          <text class="sv-s" x="472" y="80">ci-svc :9090</text>
-          <text class="sv-s" x="472" y="98">önce kaydeder, sonra OK</text>
-
-          <rect class="nd-cp" x="677" y="30" width="184" height="84" rx="10"/>
-          <circle class="bd-cp" cx="697" cy="50" r="11"/><text class="bd-t" x="697" y="54" text-anchor="middle">4</text>
-          <text class="sv-mb" x="715" y="55">ci_svc.inbox</text>
-          <text class="sv-s" x="691" y="80">anahtar: event_id</text>
-          <text class="sv-s" x="691" y="98">tekrar gelirse → değişmez</text>
-
-          <rect class="nd-cp" x="896" y="30" width="184" height="84" rx="10"/>
-          <circle class="bd-cp" cx="916" cy="50" r="11"/><text class="bd-t" x="916" y="54" text-anchor="middle">5</text>
-          <text class="sv-mb" x="934" y="55">inbox worker</text>
-          <text class="sv-s" x="910" y="80">uyanır ya da 5 sn'de bakar</text>
-          <text class="sv-s" x="910" y="98">hata: 5 sn → 5 dk tekrar</text>
-
-          <path class="ar" d="M204,72 H237"/>
-          <path class="ar" d="M423,72 H456"/>
-          <path class="ar" d="M642,72 H675"/>
-          <path class="ar" d="M861,72 H894"/>
-          <path class="ar cp" d="M988,114 V146 H112 V178"/>
-
-          <!-- row 2 -->
-          <rect class="nd-cp" x="20" y="180" width="184" height="84" rx="10"/>
-          <circle class="bd-cp" cx="40" cy="200" r="11"/><text class="bd-t" x="40" y="204" text-anchor="middle">6</text>
-          <text class="sv-mb" x="58" y="205">GetBlob</text>
-          <text class="sv-ms" x="34" y="230">.git2-ci.yml @ new_sha</text>
-          <text class="sv-s" x="34" y="248">10 sn zaman aşımı</text>
-
-          <rect class="nd-cp" x="239" y="180" width="184" height="84" rx="10"/>
-          <circle class="bd-cp" cx="259" cy="200" r="11"/><text class="bd-t" x="259" y="204" text-anchor="middle">7</text>
-          <text class="sv-t" x="277" y="205">pipeline + işler</text>
-          <text class="sv-ms" x="253" y="230">&lt;event_id&gt;:&lt;ref&gt;</text>
-          <text class="sv-s" x="253" y="248">ilk aşama → PENDING</text>
-
-          <rect class="nd-dp" x="458" y="180" width="184" height="84" rx="10"/>
-          <circle class="bd-dp" cx="478" cy="200" r="11"/><text class="bd-t" x="478" y="204" text-anchor="middle">8</text>
-          <text class="sv-mb" x="496" y="205">RequestJob</text>
-          <text class="sv-s" x="472" y="230">long poll ≤ 25 sn</text>
-          <text class="sv-s" x="472" y="248">kira 60 sn · SKIP LOCKED</text>
-
-          <rect class="nd-dp" x="677" y="180" width="184" height="84" rx="10"/>
-          <circle class="bd-dp" cx="697" cy="200" r="11"/><text class="bd-t" x="697" y="204" text-anchor="middle">9</text>
-          <text class="sv-t" x="715" y="205">konteyner</text>
-          <text class="sv-ms" x="691" y="230">git2-job-&lt;job_id&gt;</text>
-          <text class="sv-s" x="691" y="248">/bin/sh -c · set -e</text>
-
-          <rect class="nd-dp" x="896" y="180" width="184" height="84" rx="10"/>
-          <circle class="bd-dp" cx="916" cy="200" r="11"/><text class="bd-t" x="916" y="204" text-anchor="middle">10</text>
-          <text class="sv-t" x="934" y="205">log + sonuç</text>
-          <text class="sv-ms" x="910" y="230">AppendLog · UpdateJob</text>
-          <text class="sv-s" x="910" y="248">→ sonraki aşama kuyruğa</text>
-
-          <path class="ar" d="M204,222 H237"/>
-          <path class="ar" d="M423,222 H456"/>
-          <path class="ar" d="M642,222 H675"/>
-          <path class="ar" d="M861,222 H894"/>
-        </svg>
-      </div>
-      <div class="legend">
-        <span><i class="n"></i>codeplane (Apo)</span>
-        <span><i class="cp"></i>ci-svc</span>
-        <span><i class="dp"></i>runner</span>
-      </div>
-      <figcaption>Yeni iş kuyruğa girince <code>ci:jobs:wake</code> bekleyen runner'ları hemen uyandırır. Pipeline bitince <code>PipelineFinished</code> outbox'a yazılır (dağıtımı #48).</figcaption>
-    </figure>
-
-    <div class="grid top">
-      <figure class="fig">
-        <div class="scroll">
-          <svg viewBox="0 0 560 96" style="min-width:480px" role="img" aria-label="18 Kasım ölçümü: push 15:32:26.98, Deliver 0,63 saniye sonra, pipeline'lar 0,74 saniye sonra hazır.">
-            <!-- scale: 0 s at x=30, 0.8 s at x=500 (587.5 px/s) -->
-            <rect class="bar-cp" x="30" y="51" width="434.75" height="6" rx="3"/>
-            <line class="axis" x1="30" y1="54" x2="500" y2="54"/>
-            <line class="tick" x1="30" y1="59" x2="30" y2="64"/><text class="sv-ms" x="30" y="79" text-anchor="middle">0</text>
-            <line class="tick" x1="147.5" y1="59" x2="147.5" y2="64"/><text class="sv-ms" x="147.5" y="79" text-anchor="middle">0,2</text>
-            <line class="tick" x1="265" y1="59" x2="265" y2="64"/><text class="sv-ms" x="265" y="79" text-anchor="middle">0,4</text>
-            <line class="tick" x1="382.5" y1="59" x2="382.5" y2="64"/><text class="sv-ms" x="382.5" y="79" text-anchor="middle">0,6</text>
-            <line class="tick" x1="500" y1="59" x2="500" y2="64"/><text class="sv-ms" x="500" y="79" text-anchor="middle">0,8 sn</text>
-            <circle class="dot-n" cx="30" cy="54" r="5"/>
-            <text class="sv-m" x="24" y="22">push</text>
-            <text class="sv-ms" x="24" y="37">15:32:26.98</text>
-            <line class="tick" x1="400.1" y1="40" x2="400.1" y2="48"/>
-            <circle class="dot-cp" cx="400.1" cy="54" r="5"/>
-            <text class="sv-m" x="394" y="22" text-anchor="end">Deliver</text>
-            <text class="sv-ms" x="394" y="37" text-anchor="end">+0,63 sn</text>
-            <line class="tick" x1="464.75" y1="40" x2="464.75" y2="48"/>
-            <circle class="dot-cp" cx="464.75" cy="54" r="5"/>
-            <text class="sv-m" x="471" y="22">pipeline'lar</text>
-            <text class="sv-ms" x="471" y="37">+0,74 sn</text>
-          </svg>
-        </div>
-        <figcaption>18 Kas ölçümü, tek makine: git-svc <code>v0.3.0</code> + ci-svc + bir runner. Push'tan pipeline'a 1 saniyenin altında.</figcaption>
-      </figure>
-
-      <div class="card">
-        <h3>Garantiler</h3>
-        <ul class="chips">
-          <li class="chip ok t">push kaybolmaz: inbox + tekrar</li>
-          <li class="chip ok t">aynı olay iki pipeline açmaz</li>
-          <li class="chip t">silinen ref → pipeline yok</li>
-          <li class="chip t"><code>refs/notes/*</code> → pipeline yok</li>
-          <li class="chip t"><code>.git2-ci.yml</code> yok → pipeline yok</li>
-          <li class="chip bad t">geçersiz dosya → <code>FAILED</code> + <code>error_message</code></li>
-          <li class="chip t">işlenen olay 7 gün sonra silinir</li>
-        </ul>
-        <p class="note">Elle çalıştırma (dash-api'deki "Run pipeline") aynı motoru <code>TriggerPipeline</code> ile kullanır.</p>
-      </div>
-    </div>
-  </div>
-</section>
-
-<!-- ============ 3. DURUMLAR ============ -->
-<section id="durumlar">
-  <div class="wrap stack">
-    <div>
-      <p class="eyebrow">Bir iş hangi hallerden geçer?</p>
-      <h2>İş ve pipeline durumları</h2>
-      <p class="say">Son durum bir daha değişmez. Yeniden çalıştırma eski işi değiştirmez, yeni bir deneme (attempt) açar.</p>
-    </div>
-
-    <figure class="fig">
-      <p class="hint">Şema geniş: yana kaydırın.</p>
-      <div class="scroll">
-        <svg viewBox="0 0 900 310" style="min-width:720px" role="img" aria-label="İş durum makinesi: CREATED önceki aşama başarılıysa PENDING olur, runner kiralayınca RUNNING, sonra SUCCESS, FAILED ya da CANCELED. Önceki aşama başarısızsa CREATED SKIPPED olur. CancelPipeline CREATED ve PENDING işleri hemen CANCELED yapar.">
-          <!-- nodes -->
-          <rect class="nd-skip" x="20" y="40" width="124" height="40" rx="20"/>
-          <text class="st-t mute" x="82" y="64" text-anchor="middle">SKIPPED</text>
-          <rect class="nd-mute" x="20" y="130" width="124" height="40" rx="20"/>
-          <text class="st-t mute" x="82" y="154" text-anchor="middle">CREATED</text>
-          <rect class="nd-k" x="250" y="130" width="124" height="40" rx="20"/>
-          <text class="st-t k" x="312" y="154" text-anchor="middle">PENDING</text>
-          <rect class="nd-run" x="480" y="130" width="124" height="40" rx="20"/>
-          <text class="st-t run" x="542" y="154" text-anchor="middle">RUNNING</text>
-          <rect class="nd-ok" x="760" y="40" width="124" height="40" rx="20"/>
-          <text class="st-t ok" x="822" y="64" text-anchor="middle">SUCCESS</text>
-          <rect class="nd-bad" x="760" y="130" width="124" height="40" rx="20"/>
-          <text class="st-t bad" x="822" y="154" text-anchor="middle">FAILED</text>
-          <rect class="nd-mute" x="760" y="220" width="124" height="40" rx="20"/>
-          <text class="st-t mute" x="822" y="244" text-anchor="middle">CANCELED</text>
-
-          <!-- edges -->
-          <path class="ar" d="M144,150 H248"/>
-          <text class="sv-s" x="196" y="128" text-anchor="middle">önceki aşama</text>
-          <text class="sv-s" x="196" y="141" text-anchor="middle">başarılı</text>
-          <path class="ar" d="M374,150 H478"/>
-          <text class="sv-s" x="426" y="128" text-anchor="middle">runner kiraladı</text>
-          <text class="sv-ms" x="426" y="141" text-anchor="middle">SKIP LOCKED</text>
-          <path class="ar" d="M82,130 V82"/>
-          <text class="sv-s" x="92" y="104">önceki aşama başarısız</text>
-          <path class="ar" d="M604,142 H660 V60 H758"/>
-          <text class="sv-s" x="709" y="52" text-anchor="middle">exit 0</text>
-          <path class="ar" d="M604,150 H758"/>
-          <text class="sv-ms" x="709" y="142" text-anchor="middle">failure_reason</text>
-          <path class="ar" d="M604,158 H660 V240 H758"/>
-          <text class="sv-s" x="709" y="232" text-anchor="middle">iptal bayrağı</text>
-          <text class="sv-s" x="709" y="254" text-anchor="middle">heartbeat'te</text>
-          <path class="ln" d="M312,170 V292"/>
-          <path class="ar" d="M82,170 V292 H822 V262"/>
-          <text class="sv-mb" x="540" y="285" text-anchor="middle">CancelPipeline</text>
-          <text class="sv-s" x="620" y="285">hemen</text>
-        </svg>
-      </div>
-      <figcaption>Aşamanın tüm işleri başarılı olunca sonraki aşama birlikte kuyruğa girer. Çalışan iş iptal bayrağını bir sonraki heartbeat'te (15 sn) görür.</figcaption>
-    </figure>
-
-    <div class="card">
-      <p class="label">Pipeline durumu</p>
-      <div class="flowrow">
-        <span class="chip">PENDING</span><span class="arr">→</span>
-        <span class="chip run">RUNNING</span><span class="arr">→</span>
-        <span class="chip ok">SUCCESS</span><span class="chip bad">FAILED</span><span class="chip mute">CANCELED</span>
-      </div>
-    </div>
-
-    <div class="tbl min">
-      <table>
-        <thead><tr><th>JobFailureReason</th><th>Ne zaman</th><th>Kim koyar</th></tr></thead>
-        <tbody>
-          <tr><td class="k">SCRIPT_FAILURE</td><td>script sıfırdan farklı kodla çıktı; <code>exit_code</code> dolu</td><td>runner</td></tr>
-          <tr><td class="k">TIMEOUT</td><td>işin <code>timeout</code>'u doldu (varsayılan 1 sa, 10 sn – 1 gün)</td><td>runner</td></tr>
-          <tr><td class="k">RUNNER_LOST</td><td>60 sn'lik kira yenilenmedi: runner öldü, silindi, ağ koptu ya da yedekten dönüldü</td><td>ci-svc reaper</td></tr>
-          <tr><td class="k">IMAGE_PULL_FAILURE</td><td>imaj çekilemedi</td><td>runner</td></tr>
-          <tr><td class="k">RUNNER_SYSTEM_FAILURE</td><td>Docker adımı başarısız (volume, ağ, konteyner)</td><td>runner</td></tr>
-        </tbody>
-      </table>
-    </div>
-
-    <figure class="fig">
-      <p class="hint">Şema geniş: yana kaydırın.</p>
-      <div class="scroll">
-        <svg viewBox="0 0 760 180" style="min-width:640px" role="img" aria-label="RetryJob örneği: build başarılı, test başarısız, deploy atlanmış. RetryJob(test) sonrası test ikinci denemesi PENDING olur ve retry_of_id ile ilkine bağlanır; deploy için yeni deneme CREATED olarak açılır; build aynı kalır.">
-          <text class="sv-z" x="230" y="22" text-anchor="middle">BUILD</text>
-          <text class="sv-z" x="420" y="22" text-anchor="middle">TEST</text>
-          <text class="sv-z" x="610" y="22" text-anchor="middle">DEPLOY</text>
-          <text class="sv-t" x="20" y="59">1. deneme</text>
-          <rect class="nd-ok" x="155" y="36" width="150" height="36" rx="8"/>
-          <text class="st-t ok" x="230" y="59" text-anchor="middle">#1 · SUCCESS</text>
-          <rect class="nd-bad" x="345" y="36" width="150" height="36" rx="8"/>
-          <text class="st-t bad" x="420" y="59" text-anchor="middle">#1 · FAILED</text>
-          <rect class="nd-skip" x="535" y="36" width="150" height="36" rx="8"/>
-          <text class="st-t mute" x="610" y="59" text-anchor="middle">#1 · SKIPPED</text>
-
-          <path class="ar" d="M420,72 V122"/>
-          <text class="sv-mb" x="428" y="96">RetryJob</text>
-          <text class="sv-s" x="428" y="111">attempt 2 · retry_of_id</text>
-          <path class="ar pl" d="M610,72 V122"/>
-          <text class="sv-s" x="618" y="101">yeni deneme</text>
-
-          <text class="sv-t" x="20" y="147">RetryJob sonrası</text>
-          <rect class="nd-plan" x="155" y="124" width="150" height="36" rx="8"/>
-          <text class="sv-s" x="230" y="146" text-anchor="middle">#1 aynı kalır</text>
-          <rect class="nd-k" x="345" y="124" width="150" height="36" rx="8"/>
-          <text class="st-t k" x="420" y="147" text-anchor="middle">#2 · PENDING</text>
-          <rect class="nd-mute" x="535" y="124" width="150" height="36" rx="8"/>
-          <text class="st-t mute" x="610" y="147" text-anchor="middle">#2 · CREATED</text>
-        </svg>
-      </div>
-      <figcaption>Örnek: <code>RetryJob</code> başarısız işi aynı pipeline'da yeniden açar; hiç koşmamış sonraki işler de yeni deneme alır. Eski deneme ve logu durur.</figcaption>
-    </figure>
-
-    <div class="grid">
-      <div class="card">
-        <p class="label">RetryJob ne zaman kabul edilir</p>
-        <ul class="chips">
-          <li class="chip t">pipeline bitmiş</li>
-          <li class="chip t">işin en yeni denemesi</li>
-          <li class="chip t">iş <code>SKIPPED</code> değil</li>
-          <li class="chip t">önceki aşamalar başarılı</li>
-        </ul>
-        <p class="note">Aksi halde <code>FAILED_PRECONDITION</code>. Aynı <code>idempotency_key</code> aynı denemeyi döndürür.</p>
-      </div>
-      <div class="card">
-        <p class="label">Sonra ne olur</p>
-        <ul class="chips">
-          <li class="chip run t">pipeline yeniden RUNNING</li>
-          <li class="chip t"><code>PipelineFinished</code> yeniden yazılır</li>
-          <li class="chip t">listeler en yeni denemeyi gösterir</li>
-          <li class="chip t"><code>GetJob</code> her denemeyi okur</li>
-        </ul>
-        <p class="note">Tüm pipeline'ı yeniden çalıştırmak: yeni anahtarla <code>TriggerPipeline</code> (MANUAL).</p>
-      </div>
-    </div>
-  </div>
-</section>
-
-<!-- ============ 4. KONTEYNER ============ -->
-<section id="konteyner">
-  <div class="wrap stack">
-    <div>
-      <p class="eyebrow">İş nerede ve nasıl koşar?</p>
-      <h2>Konteyner nasıl oluşturuluyor</h2>
-      <p class="say">Her iş kendi konteyneri, bridge ağı ve volume'ü ile koşar. Üçü de <code>git2-job-&lt;job_id&gt;</code> adını taşır ve iş bitince silinir.</p>
-    </div>
-
-    <div class="card dp">
-      <p class="label">Çalışma zamanı</p>
-      <ul class="chips">
-        <li class="chip dp t">Docker Engine API</li>
-        <li class="chip">github.com/moby/moby/client</li>
-        <li class="chip t">Docker 29 istemcisi</li>
-        <li class="chip">client.FromEnv → DOCKER_HOST ya da yerel soket</li>
-        <li class="chip t">API sürümü pazarlıkla</li>
-        <li class="chip t">açılışta Ping · 10 sn</li>
-        <li class="chip t">Docker CLI kullanılmaz</li>
-      </ul>
-    </div>
-
-    <figure class="fig">
-      <p class="hint">Şema geniş: yana kaydırın.</p>
-      <div class="scroll">
-        <svg viewBox="0 0 1180 240" style="min-width:960px" role="img" aria-label="Konteyner yaşam döngüsü: ImagePull, VolumeCreate, NetworkCreate, ContainerCreate, ContainerAttach, ContainerWait (start'tan önce), ContainerStart, çıkış kodu. İmaj çekme hatası IMAGE_PULL_FAILURE, diğer Docker adımlarının hatası RUNNER_SYSTEM_FAILURE olur. Temizlik her sonuçta ters sırada konteyneri, ağı ve volume'ü siler.">
-          <!-- failure brackets -->
-          <text class="sv-bad" x="86" y="22" text-anchor="middle">IMAGE_PULL_FAILURE</text>
-          <path class="ln bad" d="M28,36 V30 H144 V36"/>
-          <text class="sv-bad" x="590" y="22" text-anchor="middle">hata → RUNNER_SYSTEM_FAILURE</text>
-          <path class="ln bad" d="M172,36 V30 H1008 V36"/>
-
-          <!-- 8 steps -->
-          <rect class="nd-dp" x="24" y="44" width="124" height="86" rx="10"/>
-          <circle class="bd-dp" cx="40" cy="61" r="10"/><text class="bd-t" x="40" y="65" text-anchor="middle">1</text>
-          <text class="sv-m" x="34" y="90" style="font-weight:600">ImagePull</text>
-          <text class="sv-s" x="34" y="107">yerelde yoksa</text>
-          <text class="sv-s" x="34" y="122">önce ImageInspect</text>
-
-          <rect class="nd-dp" x="168" y="44" width="124" height="86" rx="10"/>
-          <circle class="bd-dp" cx="184" cy="61" r="10"/><text class="bd-t" x="184" y="65" text-anchor="middle">2</text>
-          <text class="sv-m" x="178" y="90" style="font-weight:600">VolumeCreate</text>
-          <text class="sv-s" x="178" y="107">çalışma volume'ü</text>
-          <text class="sv-ms" x="178" y="122">→ /workspace</text>
-
-          <rect class="nd-dp" x="312" y="44" width="124" height="86" rx="10"/>
-          <circle class="bd-dp" cx="328" cy="61" r="10"/><text class="bd-t" x="328" y="65" text-anchor="middle">3</text>
-          <text class="sv-m" x="322" y="90" style="font-weight:600">NetworkCreate</text>
-          <text class="sv-s" x="322" y="107">işe özel</text>
-          <text class="sv-s" x="322" y="122">bridge ağı</text>
-
-          <rect class="nd-dp" x="456" y="44" width="124" height="86" rx="10"/>
-          <circle class="bd-dp" cx="472" cy="61" r="10"/><text class="bd-t" x="472" y="65" text-anchor="middle">4</text>
-          <text class="sv-m" x="466" y="90" style="font-weight:600">ContainerCreate</text>
-          <text class="sv-s" x="466" y="107">limitler, env,</text>
-          <text class="sv-s" x="466" y="122">etiketler</text>
-
-          <rect class="nd-dp" x="600" y="44" width="124" height="86" rx="10"/>
-          <circle class="bd-dp" cx="616" cy="61" r="10"/><text class="bd-t" x="616" y="65" text-anchor="middle">5</text>
-          <text class="sv-m" x="610" y="90" style="font-weight:600">ContainerAttach</text>
-          <text class="sv-s" x="610" y="107">stdout + stderr</text>
-          <text class="sv-s" x="610" y="122">→ maskeli log</text>
-
-          <rect class="nd-dp" x="744" y="44" width="124" height="86" rx="10"/>
-          <circle class="bd-dp" cx="760" cy="61" r="10"/><text class="bd-t" x="760" y="65" text-anchor="middle">6</text>
-          <text class="sv-m" x="754" y="90" style="font-weight:600">ContainerWait</text>
-          <text class="sv-s" x="754" y="107">start'tan önce</text>
-          <text class="sv-s" x="754" y="122">hızlı çıkış kaçmaz</text>
-
-          <rect class="nd-dp" x="888" y="44" width="124" height="86" rx="10"/>
-          <circle class="bd-dp" cx="904" cy="61" r="10"/><text class="bd-t" x="904" y="65" text-anchor="middle">7</text>
-          <text class="sv-m" x="898" y="90" style="font-weight:600">ContainerStart</text>
-          <text class="sv-ms" x="898" y="107">/bin/sh -c</text>
-          <text class="sv-s" x="898" y="122">script, set -e</text>
-
-          <rect class="nd" x="1032" y="44" width="140" height="86" rx="10"/>
-          <circle class="bd-n" cx="1048" cy="61" r="10"/><text class="bd-t" x="1048" y="65" text-anchor="middle">8</text>
-          <text class="sv-t" x="1042" y="90">çıkış kodu</text>
-          <text class="sv-ms" x="1042" y="107">0 → SUCCESS</text>
-          <text class="sv-ms" x="1042" y="122">≠0 → SCRIPT_FAILURE</text>
-
-          <path class="ar" d="M148,87 H166"/>
-          <path class="ar" d="M292,87 H310"/>
-          <path class="ar" d="M436,87 H454"/>
-          <path class="ar" d="M580,87 H598"/>
-          <path class="ar" d="M724,87 H742"/>
-          <path class="ar" d="M868,87 H886"/>
-          <path class="ar" d="M1012,87 H1030"/>
-
-          <!-- cleanup -->
-          <path class="ar dp pl" d="M230,172 V134"/>
-          <path class="ar dp pl" d="M374,172 V134"/>
-          <path class="ar dp pl" d="M518,172 V134"/>
-          <text class="sv-s" x="526" y="157">siler</text>
-          <rect class="nd-dpd" x="168" y="172" width="988" height="56" rx="10"/>
-          <text class="sv-t dp" x="186" y="194">temizlik · her sonuçta, ters sırada</text>
-          <text class="sv-m" x="186" y="214">ContainerRemove(force) → NetworkRemove → VolumeRemove · her biri ≤ 30 sn, iptalden sonra da</text>
-        </svg>
-      </div>
-      <figcaption>Zaman aşımı ya da iptal olunca işin context'i biter; ertelenmiş <code>ContainerRemove(force)</code> konteyneri durdurur. Silinemeyen artık işi başarısız saymaz, sadece loglanır.</figcaption>
-    </figure>
-
-    <div class="grid">
-      <div class="card dp">
-        <h3>Güvenlik ve limitler</h3>
-        <dl class="kv">
-          <dt>Memory</dt><dd>2048 MB · <code>memory_mb</code></dd>
-          <dt>NanoCPUs</dt><dd>2 CPU · <code>cpus</code></dd>
-          <dt>PidsLimit</dt><dd>1024 süreç · <code>pids_limit</code></dd>
-          <dt>SecurityOpt</dt><dd><code>no-new-privileges</code></dd>
-          <dt>Init</dt><dd><code>true</code> · init süreci</dd>
-          <dt>NetworkMode</dt><dd>işe özel bridge ağı</dd>
-          <dt>Mounts</dt><dd>yalnız iş volume'ü → <code>/workspace</code></dd>
-          <dt>Entrypoint</dt><dd><code>/bin/sh</code> · Cmd <code>-c &lt;script&gt;</code></dd>
-        </dl>
-        <ul class="chips" style="margin-top:12px">
-          <li class="chip bad t">privileged değil</li>
-          <li class="chip bad t">Docker soketi içeride yok</li>
-          <li class="chip bad t">host yolu bind-mount yok</li>
-        </ul>
-        <p class="note">Limitler runner'ın <code>config.json</code> → <code>docker</code> bölümünden; değerler varsayılanlar.</p>
-      </div>
-
-      <div class="card dp">
-        <h3>İşe ne girer</h3>
-        <p class="label">Ortam değişkenleri · sonra gelen kazanır</p>
-        <div class="flowrow">
-          <span class="chip">CI_* · GIT2_CI</span><span class="arr">→</span>
-          <span class="chip t">dosyanın variables'ı</span><span class="arr">→</span>
-          <span class="chip t">işin variables'ı</span><span class="arr">→</span>
-          <span class="chip cp t">secret'lar · [MASKED]</span>
-        </div>
-        <p class="note">Env, Docker API isteğinin içinde gider; diske ya da komut satırına yazılmaz.</p>
-        <p class="label" style="margin-top:14px">Log yolu</p>
-        <div class="flowrow">
-          <span class="chip t">stdout/stderr</span><span class="arr">→</span>
-          <span class="chip t">maske (≥ 4 bayt, satır satır)</span><span class="arr">→</span>
-          <span class="chip">AppendLog · 500 ms · ≤ 128 KiB</span><span class="arr">→</span>
-          <span class="chip t">4 MiB'de kesilir</span>
-        </div>
-        <p class="label" style="margin-top:14px">Etiketler · her kaynakta</p>
-        <ul class="chips">
-          <li class="chip dp">io.git2.job-id</li>
-          <li class="chip dp">io.git2.runner-id</li>
-        </ul>
-      </div>
-    </div>
-
-    <figure class="fig">
-      <p class="hint">Şema geniş: yana kaydırın.</p>
-      <div class="scroll">
-        <svg viewBox="0 0 1010 196" style="min-width:860px" role="img" aria-label="Çökme sonrası iki taraf ayrı toparlanır. ci-svc: heartbeat kesilir, 60 saniyelik kira dolar, reaper 15 saniyede bir bakar, iş RUNNER_LOST ile FAILED olur, RetryJob ile yeniden çalıştırılır. Build host: runner aynı config ile başlar, RemoveLeftovers kendi runner-id etiketini taşıyan konteyner, ağ ve volume'leri siler, isimleri loglar, sonra iş alır.">
-          <text class="sv-t cp" x="12" y="55">ci-svc</text>
-          <text class="sv-t dp" x="12" y="149">build host</text>
-          <line class="ln faint" x1="12" y1="98" x2="996" y2="98"/>
-
-          <rect class="nd-cp" x="104" y="24" width="160" height="52" rx="10"/>
-          <text class="sv-t" x="116" y="46">heartbeat kesilir</text><text class="sv-s" x="116" y="64">runner ya da host öldü</text>
-          <rect class="nd-cp" x="286" y="24" width="160" height="52" rx="10"/>
-          <text class="sv-t" x="298" y="46">kira dolar</text><text class="sv-s" x="298" y="64">60 sn</text>
-          <rect class="nd-cp" x="468" y="24" width="160" height="52" rx="10"/>
-          <text class="sv-t" x="480" y="46">reaper</text><text class="sv-s" x="480" y="64">her 15 sn, her replika</text>
-          <rect class="nd-bad" x="650" y="24" width="160" height="52" rx="10"/>
-          <text class="sv-t" x="662" y="46">FAILED</text><text class="sv-ms" x="662" y="64">RUNNER_LOST</text>
-          <rect class="nd-cp" x="832" y="24" width="160" height="52" rx="10"/>
-          <text class="sv-mb" x="844" y="46">RetryJob</text><text class="sv-s" x="844" y="64">yeni deneme</text>
-          <path class="ar cp" d="M264,50 H284"/><path class="ar cp" d="M446,50 H466"/><path class="ar cp" d="M628,50 H648"/><path class="ar cp" d="M810,50 H830"/>
-
-          <rect class="nd-dp" x="104" y="118" width="160" height="52" rx="10"/>
-          <text class="sv-t" x="116" y="140">runner başlar</text><text class="sv-s" x="116" y="158">aynı config ile</text>
-          <rect class="nd-dp" x="286" y="118" width="160" height="52" rx="10"/>
-          <text class="sv-mb" x="298" y="140">RemoveLeftovers</text><text class="sv-s" x="298" y="158">ilk işten önce</text>
-          <rect class="nd-dp" x="468" y="118" width="160" height="52" rx="10"/>
-          <text class="sv-t" x="480" y="140">etiket filtresi</text><text class="sv-ms" x="480" y="158">io.git2.runner-id=&lt;id&gt;</text>
-          <rect class="nd-dp" x="650" y="118" width="160" height="52" rx="10"/>
-          <text class="sv-t" x="662" y="140">siler</text><text class="sv-s" x="662" y="158">konteyner → ağ → volume</text>
-          <rect class="nd-dp" x="832" y="118" width="160" height="52" rx="10"/>
-          <text class="sv-t" x="844" y="140">isimleri loglar</text><text class="sv-s" x="844" y="158">sonra iş almaya başlar</text>
-          <path class="ar dp" d="M264,144 H284"/><path class="ar dp" d="M446,144 H466"/><path class="ar dp" d="M628,144 H648"/><path class="ar dp" d="M810,144 H830"/>
-        </svg>
-      </div>
-      <figcaption>Çökme sonrası iki taraf birbirinden bağımsız toparlanır. Runner yalnız kendi ID'sini taşıyanı siler; aynı daemon'daki başka runner'ların işlerine dokunmaz.</figcaption>
-    </figure>
-
-    <div class="warn" role="note">
-      <div><b>Aynı config ile aynı daemon'da iki runner çalıştırmayın:</b> açılışta biri diğerinin çalışan işlerini siler. 18 Kas öncesi işler yalnız <code>io.git2.job-id</code> taşır; onları elle silin (<code>docker ps -aq --filter label=io.git2.job-id</code>).</div>
-    </div>
-  </div>
-</section>
-
-<!-- ============ 5. MODLAR ============ -->
-<section id="modlar">
-  <div class="wrap stack">
-    <div>
-      <p class="eyebrow">Nasıl kurulur, hangi ayar neyi değiştirir?</p>
-      <h2>Çalışma modları</h2>
-      <p class="say">Runner üç şekilde kurulur; hepsinde iş başına tek konteyner kalıbı aynıdır. ci-svc'nin davranışını birkaç ortam değişkeni belirler.</p>
-    </div>
-
-    <h3 style="margin:6px 0 0">git2-runner</h3>
-    <div class="grid-3">
-      <div class="card dp">
-        <h3>systemd servisi</h3>
-        <ul class="chips">
-          <li class="chip">User=git2-runner</li>
-          <li class="chip">SupplementaryGroups=docker</li>
-          <li class="chip">Requires=docker.service</li>
-          <li class="chip">Restart=on-failure · 5s</li>
-          <li class="chip">TimeoutStopSec=1h</li>
-          <li class="chip">ProtectSystem=strict</li>
-        </ul>
-        <p class="note"><code>deploy/systemd/git2-runner.service</code>. docker grubu host'ta root'a denk: runner ayrı VM'de olmalı.</p>
-      </div>
-      <div class="card dp">
-        <h3>Konteynerde, Docker soketiyle</h3>
-        <ul class="chips">
-          <li class="chip t">imaj <code>git2-runner</code> · kullanıcı 65532</li>
-          <li class="chip">-v /var/run/docker.sock</li>
-          <li class="chip">--group-add &lt;soket GID&gt;</li>
-          <li class="chip">volume /etc/git2-runner</li>
-          <li class="chip">--restart unless-stopped</li>
-        </ul>
-        <p class="note">Önce aynı imajla bir kez <code>register</code>, sonra varsayılan komut <code>run</code>.</p>
-      </div>
-      <div class="card dp">
-        <h3><code>DOCKER_HOST</code> · Docker-in-Docker</h3>
-        <ul class="chips">
-          <li class="chip t">soket yerine uzak daemon</li>
-          <li class="chip t">host yolu bağlanmadığı için çalışır</li>
-          <li class="chip t">devcontainer DinD kullanır</li>
-          <li class="chip plan t">Kubernetes: DinD sidecar (plan)</li>
-        </ul>
-        <p class="note">Daemon başka bir makinede olabilir; işler runner'ın dosyalarını görmez.</p>
-      </div>
-    </div>
-
-    <div class="grid">
-      <div class="tbl">
-        <table>
-          <thead><tr><th>Runner ayarı</th><th>Etkisi</th></tr></thead>
-          <tbody>
-            <tr><td class="k">-url https://…:9091</td><td>TLS (en az 1.2)</td></tr>
-            <tr><td class="k">-url http://…:9091</td><td>şifresiz, yalnız geliştirme</td></tr>
-            <tr><td class="k">-labels linux,docker</td><td>işin tüm <code>tags</code>'i burada olmalı</td></tr>
-            <tr><td class="k">eşzamanlılık</td><td>süreç başına tek iş; paralellik için daha çok runner süreci</td></tr>
-            <tr><td class="k">SIGTERM</td><td>mevcut iş biter, sonra çıkar</td></tr>
-            <tr><td class="k">config.json</td><td><code>/etc/git2-runner</code>, izin 0600; <code>-force</code> olmadan üzerine yazılmaz</td></tr>
-          </tbody>
-        </table>
-      </div>
-      <div class="card">
-        <p class="label">Etiket eşleşmesi · runner <code>[linux, docker]</code></p>
-        <div class="row-gap">
-          <div class="flowrow"><span class="chip">tags: [linux]</span><span class="arr">→</span><span class="chip ok t">alır</span></div>
-          <div class="flowrow"><span class="chip">tags: [linux, arm64]</span><span class="arr">→</span><span class="chip bad t">almaz</span></div>
-          <div class="flowrow"><span class="chip">tags yok</span><span class="arr">→</span><span class="chip ok t">her runner alır</span></div>
-          <div class="flowrow"><span class="chip t">runner duraklatıldı</span><span class="arr">→</span><span class="chip mute t">işini bitirir, yenisini almaz</span></div>
-        </div>
-        <p class="label" style="margin-top:16px"><code>git2-runner run</code> açılışı</p>
-        <ol class="steps dp">
-          <li><b>config oku</b>url, token yoksa durur</li>
-          <li><b>Docker Ping</b>10 sn içinde</li>
-          <li><b>artıkları sil</b>RemoveLeftovers</li>
-          <li><b>ci-svc'ye bağlan</b>iş döngüsü başlar</li>
-        </ol>
-      </div>
-    </div>
-
-    <h3 style="margin:14px 0 0">ci-svc</h3>
-    <div class="tbl min">
-      <table>
-        <thead><tr><th>Ayar</th><th>Ayarlıysa</th><th>Boşsa</th></tr></thead>
-        <tbody>
-          <tr><td class="k">GIT2_CISVC_DEV=true</td><td>gRPC reflection (<code>grpcurl</code>); <code>DEV_CONFIG_DIR</code> kullanılabilir</td><td>üretim modu (varsayılan)</td></tr>
-          <tr><td class="k">GIT_SVC_GRPC_ADDR</td><td><code>.git2-ci.yml</code> git-svc'den <code>GetBlob</code> ile</td><td rowspan="2">ikisi de boşsa: push'lar inbox'ta bekler; açılışta uyarı</td></tr>
-          <tr><td class="k">GIT2_CISVC_DEV_CONFIG_DIR</td><td><code>&lt;dir&gt;/&lt;repository_id&gt;/.git2-ci.yml</code>; üsttekiyle birlikte değil</td></tr>
-          <tr><td class="k">REDIS_ADDR</td><td>uyandırmalar tüm replikalara gider; kayıt hız sınırı</td><td>yalnız 1 replikaya uygun; uyandırma kaçarsa 3 sn (iş) / 1 sn (log) yoklama; hız sınırı uygulanmaz</td></tr>
-          <tr><td class="k">POSTGRES_DSN → :6543</td><td>Supabase transaction pooler: exec modu, statement cache kapalı</td><td>normal pgx modu</td></tr>
-          <tr><td class="k">GIT2_CISVC_RUNNER_TLS_CERT + _KEY</td><td><code>:9091</code>'de TLS (en az 1.2)</td><td>şifresiz + uyarı; TLS'i öndeki proxy sonlandırır (HTTP/2 geçirmeli)</td></tr>
-          <tr><td class="k">replika sayısı</td><td colspan="2">durumsuz; reaper ve inbox worker her replikada, <code>SKIP LOCKED</code> ile çakışmaz; Kubernetes'te 2+</td></tr>
-        </tbody>
-      </table>
-    </div>
-    <div class="flowrow" style="margin-top:-4px">
-      <span class="label" style="margin:0">Zorunlu</span>
-      <span class="chip cp">POSTGRES_DSN</span>
-      <span class="chip cp">GIT2_CI_SECRETS_KEY</span>
-      <span class="chip t">yedekte anahtar da olmalı</span>
-    </div>
-
-    <div>
-      <p class="label"><code>ci-svc</code> açılış sırası</p>
-      <ol class="steps">
-        <li><b>config</b>hatalı değişkenlerin hepsini listeler, exit 1</li>
-        <li><b>Postgres + şema</b>003 ve 006 yoksa başlamaz</li>
-        <li><b>secret anahtarı</b>başka anahtarla şifreli secret varsa başlamaz</li>
-        <li><b>Redis</b>opsiyonel; yoksa uyarı</li>
-        <li><b>dosya kaynağı</b>git-svc, dev dizini ya da yok</li>
-        <li><b>reaper + inbox worker</b>arka planda</li>
-        <li><b>:9090 + :9091</b>health SERVING · SIGTERM'de 20 sn</li>
-      </ol>
-    </div>
-  </div>
-</section>
-
-<!-- ============ 6. API ============ -->
-<section id="api">
-  <div class="wrap stack">
-    <div>
-      <p class="eyebrow">Hangi servis, hangi port, kim çağırır?</p>
-      <h2>API haritası</h2>
-      <p class="say">ci-svc yalnızca gRPC konuşur. İç port çağıranına güvenir, yetkiyi çağıran kontrol eder; runner portu Bearer token ister.</p>
-    </div>
-
-    <div class="grid api">
-      <div class="card cp svc">
-        <div class="svc-h"><h3>PipelineService</h3><span class="port cp">:9090</span></div>
-        <div class="who">çağıran: dash-api (Bilge)</div>
-        <ul class="rpc">
-          <li><code>TriggerPipeline</code><span>elle çalıştırma; anahtarla idempotent</span></li>
-          <li><code>GetPipeline</code><span>işleriyle tek pipeline</span></li>
-          <li><code>ListPipelines</code><span>en yeni önce, sayfalı</span></li>
-          <li><code>CancelPipeline</code><span>bitmemiş işleri iptal</span></li>
-          <li><code>GetJob</code><span>her deneme okunur</span></li>
-          <li><code>RetryJob</code><span>aynı pipeline'da yeni deneme</span></li>
-          <li><code>StreamJobLog</code><span>ofsetten log; <code>follow</code> ile canlı</span></li>
-          <li><code>ValidateConfig</code><span><code>.git2-ci.yml</code> kontrolü, ≤ 256 KiB</span></li>
-        </ul>
-      </div>
-
-      <div class="card dp svc">
-        <div class="svc-h"><h3>RunnerService</h3><span class="port dp">:9091</span></div>
-        <div class="who">çağıran: git2-runner · <code>authorization: Bearer g2r_…</code></div>
-        <ul class="rpc">
-          <li><code>RegisterRunner</code><span><code>g2rt_</code> → runner ID + <code>g2r_</code>; IP başına 10/dk</span></li>
-          <li><code>RequestJob</code><span>long poll ≤ 25 sn; iş ya da boş</span></li>
-          <li><code>UpdateJob</code><span>RUNNING = heartbeat (15 sn); SUCCESS / FAILED; cevapta <code>cancel_requested</code></span></li>
-          <li><code>AppendLog</code><span>ofsetli, idempotent; 4 MiB sınır</span></li>
-        </ul>
-      </div>
-
-      <div class="card cp svc">
-        <div class="svc-h"><h3>RunnerAdminService</h3><span class="port cp">:9090</span></div>
-        <div class="who">çağıran: admin-api (Beste, konsol) · yalnız instance admin</div>
-        <ul class="rpc">
-          <li><code>CreateRegistrationToken</code><span>tek kullanımlık <code>g2rt_</code>; 1 sa (1 dk – 7 gün)</span></li>
-          <li><code>ListRunners</code><span>en eski önce, sayfalı</span></li>
-          <li><code>GetRunner</code><span>tek runner</span></li>
-          <li><code>UpdateRunner</code><span>duraklat, açıklama</span></li>
-          <li><code>DeleteRunner</code><span>token'ı hemen durdurur</span></li>
-        </ul>
-        <ul class="chips">
-          <li class="chip ok">ONLINE · son 90 sn</li><li class="chip mute">OFFLINE</li><li class="chip run">PAUSED</li>
-        </ul>
-      </div>
-
-      <div class="card cp svc">
-        <div class="svc-h"><h3>SecretService</h3><span class="port cp">:9090</span></div>
-        <div class="who">çağıran: admin-api (instance) · dash-api (repo)</div>
-        <ul class="rpc">
-          <li><code>SetSecret</code><span>değer yalnız yazılır</span></li>
-          <li><code>ListSecrets</code><span>ad + tarih; değer asla</span></li>
-          <li><code>DeleteSecret</code><span>sil</span></li>
-        </ul>
-        <ul class="chips">
-          <li class="chip">SECRET_SCOPE_INSTANCE</li><li class="chip">SECRET_SCOPE_REPOSITORY</li><li class="chip t">aynı adda repo kazanır</li>
-        </ul>
-      </div>
-
-      <div class="card svc">
-        <div class="svc-h"><h3>events.v1.EventSink</h3><span class="port cp">:9090</span></div>
-        <div class="who">çağıran: codeplane relay (Apo) · sözleşme git2-codeplane'de</div>
-        <ul class="rpc">
-          <li><code>Deliver</code><span><code>git.v1.RepositoryPushed</code>'ı inbox'a yazar</span></li>
-        </ul>
-        <ul class="chips">
-          <li class="chip ok t">OK = kaydedildi</li>
-          <li class="chip bad t">INVALID_ARGUMENT = bir daha gönderme</li>
-          <li class="chip t">diğer kodlar = relay tekrar dener</li>
-        </ul>
-      </div>
-
-      <div class="card svc">
-        <div class="svc-h"><h3>Olaylar · outbox</h3><span class="status plan">#48 bekliyor</span></div>
-        <div class="who">ci-svc yazar; değişiklikle aynı transaction'da</div>
-        <ul class="rpc">
-          <li><code>ci.v1.PipelineCreated</code><span>pipeline açıldı</span></li>
-          <li><code>ci.v1.PipelineFinished</code><span>MR'daki ✓/✗ için; retry'da yeniden gelebilir</span></li>
-          <li><code>ci.v1.JobFinished</code><span>her deneme için bir kez</span></li>
-        </ul>
-        <p class="note" style="margin:0">Relay gelene kadar <code>ci_svc.outbox</code>'ta bekler; kaybolmaz.</p>
-      </div>
-    </div>
-
-    <div class="card">
-      <p class="label">Ortak · iki portta da</p>
-      <ul class="chips">
-        <li class="chip">grpc.health.v1.Health</li>
-        <li class="chip t">reflection: yalnız dev, <code>:9090</code></li>
-        <li class="chip t">ID'ler UUID; pipeline/iş/runner UUIDv7</li>
-        <li class="chip t">sayfalama AIP-158, en çok 100</li>
-      </ul>
-      <p class="label" style="margin-top:14px">Hata kodları</p>
-      <ul class="chips">
-        <li class="chip">INVALID_ARGUMENT · isteği düzelt</li>
-        <li class="chip">NOT_FOUND · yok</li>
-        <li class="chip">ALREADY_EXISTS · anahtar başka veriyle</li>
-        <li class="chip">FAILED_PRECONDITION · durum izin vermiyor</li>
-        <li class="chip">RESOURCE_EXHAUSTED · 1 dk bekle</li>
-        <li class="chip run">UNAVAILABLE · geri çekilip tekrar</li>
-        <li class="chip dp">UNAUTHENTICATED · runner yeniden kaydolur</li>
-        <li class="chip bad">INTERNAL · detay ci-svc logunda</li>
-      </ul>
-    </div>
-  </div>
-</section>
-
-<!-- ============ 7. YARDIMCILAR ============ -->
-<section id="yardimcilar">
-  <div class="wrap stack">
-    <div>
-      <p class="eyebrow">Kodda ve repoda ne var?</p>
-      <h2>Yardımcılar</h2>
-      <p class="say">Go modülünün kökü <code>app/</code>. Runner, ci-svc kodunu import etmez; CI bunu her PR'da kontrol eder.</p>
-    </div>
-
-    <p class="label" style="margin:0">ci-svc · <code>app/internal/cisvc/</code></p>
-    <div class="grid-3">
-      <div class="card cp">
-        <h3><code>pipeline</code></h3>
-        <p class="note" style="margin:0 0 8px">Push'u işlere çevirir, kuyruğu yönetir, durumu ve logları tutar.</p>
-        <ul class="chips"><li class="chip">queue</li><li class="chip">advance</li><li class="chip">retry</li><li class="chip">trigger</li><li class="chip">logs</li><li class="chip">query</li></ul>
-      </div>
-      <div class="card cp"><h3><code>inbox</code></h3><p class="note" style="margin:0">Gelen olayı saklar; worker push'tan pipeline başlatır.</p></div>
-      <div class="card cp"><h3><code>notify</code></h3><p class="note" style="margin:0">Uyandırma sinyalleri; aynı süreçte doğrudan, replikalar arası Redis ile.</p></div>
-      <div class="card cp"><h3><code>outbox</code></h3><p class="note" style="margin:0">Olayı değişiklikle aynı transaction'da <code>ci_svc.outbox</code>'a yazar.</p></div>
-      <div class="card cp"><h3><code>source</code></h3><p class="note" style="margin:0"><code>.git2-ci.yml</code> okur: GitSvc, Dir (dev) ya da Unavailable.</p></div>
-      <div class="card cp"><h3><code>secretbox</code></h3><p class="note" style="margin:0">AES-256-GCM; anahtar config'ten, her değerde anahtar ID'si.</p></div>
-      <div class="card cp"><h3><code>secrets</code></h3><p class="note" style="margin:0">Secret saklar; değerleri yalnız iş kiralanınca çözer.</p></div>
-      <div class="card cp"><h3><code>runners</code></h3><p class="note" style="margin:0">Kayıt, token doğrulama; listele, duraklat, sil.</p></div>
-      <div class="card cp"><h3><code>token</code></h3><p class="note" style="margin:0"><code>g2rt_</code> / <code>g2r_</code> önekli rastgele token; yalnız SHA-256 saklanır.</p></div>
-      <div class="card cp"><h3><code>ratelimit</code></h3><p class="note" style="margin:0">Redis'te deneme sayacı; Redis yoksa izin verir.</p></div>
-      <div class="card cp"><h3><code>server</code></h3><p class="note" style="margin:0">gRPC servisleri, interceptor'lar, iki port, health.</p></div>
-      <div class="card cp"><h3><code>db</code> · <code>config</code></h3><p class="note" style="margin:0">Postgres havuzu, şema kontrolü, pooler; ortam değişkenleri.</p></div>
-      <div class="card cp"><h3><code>page</code> · <code>apierr</code></h3><p class="note" style="margin:0">AIP-158 sayfalama; istemciye gösterilebilir hatalar → gRPC kodu.</p></div>
-      <div class="card cp"><h3><code>testdb</code></h3><p class="note" style="margin:0">Entegrasyon testleri için atılabilir veritabanı.</p></div>
-      <div class="card"><h3><code>internal/ciyaml</code></h3><p class="note" style="margin:0"><code>.git2-ci.yml</code> v0 ayrıştırıcı; satır/sütunlu hatalar, JSON şema.</p></div>
-    </div>
-
-    <p class="label" style="margin:8px 0 0">runner · <code>app/internal/runner/</code></p>
-    <div class="grid-3">
-      <div class="card dp"><h3><code>agent.go</code></h3><p class="note" style="margin:0">İş ister, çalıştırır, 15 sn'de bir heartbeat, sonucu 6 denemeye kadar bildirir.</p></div>
-      <div class="card dp"><h3><code>logship.go</code> · <code>mask.go</code></h3><p class="note" style="margin:0">Logu maskeler, gruplar ve gönderir; ci-svc yavaşsa 8 MiB'den sonra eskiyi atar.</p></div>
-      <div class="card dp"><h3><code>runner.go</code></h3><p class="note" style="margin:0">Config (0600), Docker limitleri, <code>Dial</code>: https → TLS, http → şifresiz.</p></div>
-      <div class="card dp"><h3><code>runner/docker</code></h3><p class="note" style="margin:0">Docker executor: iş başına konteyner + ağ + volume; <code>RemoveLeftovers</code>.</p></div>
-    </div>
-
-    <div class="grid" style="margin-top:8px">
-      <div class="card">
-        <h3>Komutlar</h3>
-        <dl class="kv">
-          <dt>git2-runner register</dt><dd><code>-url -token</code> [<code>-name -labels -config -force</code>]: kayıt token'ını runner token'ına çevirir</dd>
-          <dt>git2-runner run</dt><dd>[<code>-config</code>]: artıkları siler, iş alır</dd>
-          <dt>git2-runner version</dt><dd>sürümü yazar</dd>
-          <dt>ci-svc [serve]</dt><dd>iki portu açar</dd>
-        </dl>
-        <ul class="chips" style="margin-top:10px">
-          <li class="chip">GIT2_RUNNER_CONFIG</li><li class="chip">GIT2_RUNNER_REGISTRATION_TOKEN</li>
-        </ul>
-      </div>
-      <div class="card">
-        <h3>Makefile · <code>app/</code></h3>
-        <dl class="kv">
-          <dt>run</dt><dd>ci-svc'yi çalıştırır</dd>
-          <dt>run-runner</dt><dd>kayıtlı runner'ı çalıştırır</dd>
-          <dt>tests</dt><dd>tüm testler; Postgres olanlar <code>TEST_POSTGRES_DSN</code> ile</dd>
-          <dt>tests-docker</dt><dd>+ konteyner açan testler (<code>-tags integration</code>)</dd>
-          <dt>build</dt><dd>iki program → <code>bin/</code></dd>
-          <dt>lint</dt><dd>golangci-lint, buf lint, buf format</dd>
-          <dt>proto · proto-check</dt><dd><code>gen/go</code> üretir · güncel mi bakar</dd>
-        </dl>
-        <p class="note">Araçlar <code>tools.mod</code>'da sabit: buf, protoc eklentileri, golangci-lint, grpcurl.</p>
-      </div>
-    </div>
-
-    <div class="card">
-      <h3>CI iş akışı · <code>.github/workflows/ci.yml</code></h3>
-      <div class="flowrow" style="margin-bottom:12px">
-        <span class="chip t">her PR</span><span class="chip t">main'e push</span><span class="arr">→</span><span class="chip t">4 iş paralel</span><span class="chip">Go 1.26.10</span>
-      </div>
-      <div class="grid-3">
-        <div><p class="label">lint and proto</p><ul class="chips"><li class="chip">make lint</li><li class="chip">make proto-check</li><li class="chip t">runner pgx / go-redis / cisvc import etmez</li></ul></div>
-        <div><p class="label">tests (race, Postgres)</p><ul class="chips"><li class="chip">go test -race ./...</li><li class="chip">postgres:17-alpine</li></ul></div>
-        <div><p class="label">tests with Docker</p><ul class="chips"><li class="chip">-tags integration</li><li class="chip">./internal/runner/...</li></ul></div>
-        <div><p class="label">images (amd64, arm64)</p><ul class="chips"><li class="chip">ci-svc</li><li class="chip">git2-runner</li><li class="chip plan t">push: false</li></ul></div>
-      </div>
-    </div>
-
-    <div class="tbl min">
-      <table>
-        <thead><tr><th>İmaj · <code>app/Dockerfile</code></th><th>Taban</th><th>Kullanıcı</th><th>Port / volume</th><th>Önerilen ad</th></tr></thead>
-        <tbody>
-          <tr><td class="k">ci-svc</td><td><code>distroless/static-debian12:nonroot</code></td><td>65532</td><td><code>9090</code>, <code>9091</code> · volume yok</td><td><code>ghcr.io/git2-project/ci-svc</code></td></tr>
-          <tr><td class="k">git2-runner</td><td><code>distroless/static-debian12:nonroot</code></td><td>65532</td><td>port yok · <code>/etc/git2-runner</code></td><td><code>ghcr.io/git2-project/git2-runner</code></td></tr>
-        </tbody>
-      </table>
-    </div>
-    <ul class="chips">
-      <li class="chip t">statik Go, kabuk yok, ~6–10 MB</li>
-      <li class="chip t">amd64 + arm64, emülasyonsuz çapraz derleme</li>
-      <li class="chip t">HEALTHCHECK yok: Kubernetes gRPC probe</li>
-      <li class="chip plan t">henüz yayınlanmıyor (#40)</li>
-    </ul>
-  </div>
-</section>
-
-<!-- ============ 8. YOLDA ============ -->
-<section id="yolda">
-  <div class="wrap stack">
-    <div>
-      <p class="eyebrow">Sırada ne var?</p>
-      <h2>Yolda olanlar</h2>
-      <p class="say">Üç iş öne çıkıyor: izleme incelemede, iş kaynağı sırada, relay ondan sonra.</p>
-    </div>
-
-    <div class="grid-3">
-      <div class="card road">
-        <div class="road-h"><span class="num">#19 · A-04 · W5</span><span class="status plan">planlanan</span></div>
-        <h3>İş kaynağı: <code>GetArchive</code></h3>
-        <div class="flowrow">
-          <span class="chip t">bugün: boş <code>/workspace</code></span>
-        </div>
-        <div class="flowrow">
-          <span class="chip">GetArchive (tar)</span><span class="arr">→</span>
-          <span class="chip cp t">ci-svc · boyut sınırı</span><span class="arr">→</span>
-          <span class="chip t">yeni runner RPC'si</span><span class="arr">→</span>
-          <span class="chip dp">CopyToContainer</span>
-        </div>
-        <p class="note" style="margin:0">Hazır: codeplane PR 18 birleşti, <code>v0.4.0</code> etiketlendi (18 Kas). Sıradaki iş.</p>
-      </div>
-
-      <div class="card road">
-        <div class="road-h"><span class="num">#48 · W5–W6</span><span class="status plan">planlanan</span></div>
-        <h3>Kendi outbox relay'imiz</h3>
-        <div class="flowrow">
-          <span class="chip">ci_svc.outbox</span><span class="arr">→</span>
-          <span class="chip">EventSink.Deliver</span><span class="arr">→</span>
-          <span class="chip t">dash-api</span>
-        </div>
-        <p class="note" style="margin:0">MR'daki pipeline ✓/✗ için (M3, 11 Ara). Ayar önerisi: <code>GIT2_CISVC_EVENT_SINKS</code>.</p>
-      </div>
-
-      <div class="card road">
-        <div class="road-h"><span class="num">#51 · PR #52</span><span class="status prog">incelemede</span></div>
-        <h3>Runner ve konteyner izleme</h3>
-        <div class="flowrow">
-          <span class="chip">RequestJob + <code>RunnerHealth</code></span><span class="arr">→</span>
-          <span class="chip cp t">runners.health</span>
-        </div>
-        <div class="flowrow">
-          <span class="chip">heartbeat + <code>ContainerStats</code></span><span class="arr">→</span>
-          <span class="chip cp t">jobs.container_stats</span>
-        </div>
-        <div class="flowrow">
-          <span class="chip t"><code>Runner.health</code></span>
-          <span class="chip t"><code>ListRunningJobs</code></span>
-          <span class="chip t"><code>GetOverview</code></span>
-        </div>
-        <p class="note" style="margin:0">Migration 008 (git2 #53, Ceyda). Konsol ekranları: git2 #54 (Beste).</p>
-      </div>
-    </div>
-
-    <div class="card">
-      <p class="label">Sonra · açık issue'lar</p>
-      <ul class="chips">
-        <li class="chip plan t">#21 artifact'lar + bucket · W6–W7</li>
-        <li class="chip plan t">#22 restore ve hata testleri · M4 18 Ara</li>
-        <li class="chip plan t">#31 aynı anda birden çok iş</li>
-        <li class="chip plan t">#32 Kubernetes executor</li>
-        <li class="chip plan t">#40 GHCR imajları + canlı instance</li>
-        <li class="chip plan t">#24 secret: owner scope, temizlik, anahtar rotasyonu</li>
-      </ul>
-    </div>
-  </div>
-</section>
-
-</main>
-
-<footer>
-  <div class="wrap">
-    Kaynaklar, <code>origin/feat/runner-leftovers</code> üzerinden okundu:
-    <ul class="chips">
-      <li class="chip">docs/api/*.md</li>
-      <li class="chip">docs/design/plan.md</li>
-      <li class="chip">docs/design/assumptions.md</li>
-      <li class="chip">docs/decisions/0001–0010</li>
-      <li class="chip">app/proto/ci/v1/*.proto</li>
-      <li class="chip">app/cmd/ci-svc/main.go</li>
-      <li class="chip">app/cmd/git2-runner/main.go</li>
-      <li class="chip">app/internal/runner/**</li>
-      <li class="chip">app/internal/cisvc/**</li>
-      <li class="chip">app/Dockerfile · Makefile</li>
-      <li class="chip">.github/workflows/ci.yml</li>
-      <li class="chip">deploy/systemd/git2-runner.service</li>
-      <li class="chip">docs/version_notes/2026/11/18_11.md</li>
-    </ul>
-  </div>
-</footer>
-
-<script>
-(function () {
-  var links = document.querySelectorAll('nav.toc a');
-  if (!links.length || !('IntersectionObserver' in window)) return;
-  var byId = {};
-  for (var i = 0; i < links.length; i++) byId[links[i].getAttribute('href').slice(1)] = links[i];
-  var obs = new IntersectionObserver(function (entries) {
-    entries.forEach(function (e) {
-      if (!e.isIntersecting) return;
-      for (var j = 0; j < links.length; j++) links[j].removeAttribute('aria-current');
-      var a = byId[e.target.id];
-      if (!a) return;
-      a.setAttribute('aria-current', 'true');
-      var bar = a.closest('.wrap');
-      if (bar && bar.scrollWidth > bar.clientWidth) bar.scrollLeft = Math.max(0, a.offsetLeft - 24);
-    });
-  }, { rootMargin: '-40% 0px -55% 0px' });
-  Object.keys(byId).forEach(function (id) {
-    var s = document.getElementById(id);
-    if (s) obs.observe(s);
-  });
-})();
-</script>
-</body>
-</html>
+.scen h3 { font-size: 16px; margin-bottom: 8px; }
+.scen ol { margin: 0; padding-left: 20px; display: grid; gap: 5px; font-size: 14px; }
+.scen .end { margin-top: 8px; font-size: 13px; font-weight: 600; color: var(--ok); }
+.note { color: var(--ink-2); font-size: 13.5px; }
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+</style></head><body><svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs><marker id="m-http" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="mk p-http" d="M0,0 L10,5 L0,10 z"/></marker><marker id="m-grpc" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="mk p-grpc" d="M0,0 L10,5 L0,10 z"/></marker><marker id="m-sql" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="mk p-sql" d="M0,0 L10,5 L0,10 z"/></marker><marker id="m-redis" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="mk p-redis" d="M0,0 L10,5 L0,10 z"/></marker><marker id="m-docker" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="mk p-docker" d="M0,0 L10,5 L0,10 z"/></marker></defs></svg><div class="wrap"><header class="top"><span class="eyebrow">git2 · CI şeridi · 20 Kasım 2026</span><h1>Bir <code style="font-size:.8em">git push</code>'tan yeşil ✓'ye: git2 CI adım adım</h1><p class="lead">Önce parçaları tanıyoruz, sonra sunucuları çiziyoruz, sonra bir push'u 12 adımda baştan sona izliyoruz. Her adımda aynı harita çizili; o adımda çalışan kutular ve oklar yanıyor.</p></header><nav class="toc" aria-label="Bölümler"><a href="#parcalar">1 · Parçalar</a><a href="#sunucular">2 · Sunucular</a><a href="#yolculuk">3 · Push&#x27;un yolculuğu</a><a href="#postgres">4 · Postgres</a><a href="#redis">5 · Redis</a><a href="#konteyner">6 · Konteyner</a><a href="#runner">7 · Runner</a><a href="#rpc">8 · RPC ve API</a><a href="#bozulursa">9 · Bozulursa</a><a href="#modlar">10 · Modlar</a><a href="#yolda">11 · Sırada</a></nav><section id="parcalar"><div class="sec-head"><span class="n">1</span><h2>Önce parçalar</h2><p class="lead">Sayfada geçen on kavram. Her kartın altında &laquo;bizde ne yapar&raquo; yazıyor.</p></div><div class="grid g2"><div class="card piece"><svg viewBox="0 0 72 56" aria-hidden="true"><rect x="14" y="6" width="44" height="44" rx="4" class="ic-s"/><rect x="20" y="12" width="32" height="8" rx="2" class="ic-f"/><rect x="20" y="24" width="32" height="8" rx="2" class="ic-f"/><rect x="20" y="36" width="32" height="8" rx="2" class="ic-f"/><circle cx="47" cy="16" r="1.8" class="ic-a"/><circle cx="47" cy="28" r="1.8" class="ic-a"/><circle cx="47" cy="40" r="1.8" class="ic-a"/></svg><div><h3>Sunucu</h3><p class="what">Bir bilgisayar. Fiziksel ya da bulutta sanal.</p><p class="ours">İki tane var: <b>Sunucu 1</b> git2'nin kendisi, <b>Sunucu 2</b> işlerin koştuğu build host.</p></div></div><div class="card piece"><svg viewBox="0 0 72 56" aria-hidden="true"><rect x="8" y="14" width="56" height="30" rx="2" class="ic-s"/><path d="M18 14v30M28 14v30M38 14v30M48 14v30" class="ic-l"/><path d="M8 8h56" class="ic-l"/></svg><div><h3>Konteyner</h3><p class="what">Bir programın kendi dosyalarıyla, yalıtılmış kutusu. Docker kurar.</p><p class="ours">Sunucu 1'deki her servis bir konteyner. Her CI işi de Sunucu 2'de kendi konteynerinde çalışır.</p></div></div><div class="card piece"><svg viewBox="0 0 72 56" aria-hidden="true"><rect x="6" y="10" width="38" height="36" rx="5" class="ic-s"/><text x="25" y="32" text-anchor="middle" class="ic-t">svc</text><rect x="44" y="22" width="10" height="12" class="ic-f"/><path d="M54 28h12" class="ic-a2"/><text x="60" y="20" text-anchor="middle" class="ic-t2">:9090</text></svg><div><h3>Servis ve port</h3><p class="what">Sürekli çalışan bir program. Port, ona ulaşılan kapı numarası.</p><p class="ours">ci-svc'nin iki kapısı var: <code>:9090</code> iç servisler için, <code>:9091</code> runner'lar için.</p></div></div><div class="card piece"><svg viewBox="0 0 72 56" aria-hidden="true"><rect x="4" y="16" width="20" height="24" rx="3" class="ic-s"/><rect x="48" y="16" width="20" height="24" rx="3" class="ic-s"/><path d="M26 22h18" class="ic-a2"/><path d="M40 18l4 4-4 4" class="ic-a2"/><path d="M46 34H28" class="ic-a2"/><path d="M32 30l-4 4 4 4" class="ic-a2"/></svg><div><h3>RPC (gRPC)</h3><p class="what">Başka bir makinedeki fonksiyonu, kendi fonksiyonunu çağırır gibi çağırmak.</p><p class="ours">Servisler birbirine gRPC ile konuşur. Ne gönderileceğini <code>.proto</code> dosyası belirler.</p></div></div><div class="card piece"><svg viewBox="0 0 72 56" aria-hidden="true"><ellipse cx="36" cy="12" rx="20" ry="6" class="ic-s"/><path d="M16 12v30c0 3.3 9 6 20 6s20-2.7 20-6V12" class="ic-s"/><path d="M16 22c0 3.3 9 6 20 6s20-2.7 20-6M16 32c0 3.3 9 6 20 6s20-2.7 20-6" class="ic-l"/></svg><div><h3>PostgreSQL</h3><p class="what">Kalıcı veritabanı: tablolar, satırlar. Yedeklenir.</p><p class="ours">Bütün CI durumu burada: pipeline'lar, işler, loglar, sırlar, kuyruk. <b>Gerçeğin tek kaynağı.</b></p></div></div><div class="card piece"><svg viewBox="0 0 72 56" aria-hidden="true"><path d="M36 8c-9 0-14 7-14 16v10l-5 6h38l-5-6V24c0-9-5-16-14-16z" class="ic-s"/><circle cx="36" cy="46" r="4" class="ic-f"/><path d="M12 14c-3 4-3 10 0 14M60 14c3 4 3 10 0 14" class="ic-a2"/></svg><div><h3>Redis</h3><p class="what">Bellekte duran hızlı bir yardımcı. Yedeklenmez.</p><p class="ours">Bizde yalnızca <b>zil</b>: &laquo;yeni iş var, uyan&raquo;. Kapalıysa her şey yine çalışır, sadece biraz yavaş.</p></div></div><div class="card piece"><svg viewBox="0 0 72 56" aria-hidden="true"><path d="M8 20l10-12h36l10 12v24H8z" class="ic-s"/><path d="M8 20h18c0 5 4 8 10 8s10-3 10-8h18" class="ic-l"/><rect x="26" y="8" width="20" height="10" rx="1" class="ic-f"/></svg><div><h3>Outbox / Inbox</h3><p class="what">Giden ve gelen kutusu. Olay önce tabloya yazılır, sonra gönderilir.</p><p class="ours">git-svc'nin outbox'ı → ci-svc'nin inbox'ı. Hiçbir push kaybolmaz.</p></div></div><div class="card piece"><svg viewBox="0 0 72 56" aria-hidden="true"><rect x="6" y="18" width="16" height="22" rx="2" class="ic-s"/><rect x="26" y="18" width="16" height="22" rx="2" class="ic-s"/><rect x="46" y="18" width="16" height="22" rx="2" class="ic-f"/><circle cx="54" cy="12" r="7" class="ic-s"/><path d="M54 8v4l3 2" class="ic-l"/></svg><div><h3>Kuyruk ve kira</h3><p class="what">Sırada bekleyen işler; alan, süreli bir kirayla alır.</p><p class="ours">Kuyruk Postgres'teki <code>jobs</code> tablosu. Kira 60 sn ve her nabızda uzar. Uzamazsa iş geri alınır.</p></div></div><div class="card piece"><svg viewBox="0 0 72 56" aria-hidden="true"><path d="M22 6h28M22 50h28M26 6c0 12 20 14 20 22S26 38 26 50M46 6c0 12-20 14-20 22s20 10 20 22" class="ic-s"/><path d="M30 44h12l-6-8z" class="ic-f"/></svg><div><h3>Long poll</h3><p class="what">&laquo;Var mı?&raquo; sorusuna cevabı, bir şey olana kadar bekletmek.</p><p class="ours">Runner sorar, ci-svc 25 sn'ye kadar bekletir. İş gelirse anında cevap verir.</p></div></div><div class="card piece"><svg viewBox="0 0 72 56" aria-hidden="true"><circle cx="20" cy="28" r="12" class="ic-s"/><circle cx="20" cy="28" r="4" class="ic-f"/><path d="M32 28h32M52 28v8M60 28v6" class="ic-a2"/></svg><div><h3>Token</h3><p class="what">Kimlik kartı yerine geçen uzun, gizli bir metin.</p><p class="ours">Kayıt için tek kullanımlık <code>g2rt_…</code>, sonra runner'ın kalıcı <code>g2r_…</code>'si. Veritabanında yalnızca özeti (SHA-256) durur.</p></div></div></div></section><section id="sunucular"><div class="sec-head"><span class="n">2</span><h2>Sunucular ve kutular</h2><p class="lead">Hangi program hangi makinede, hangi kapıdan konuşuyor.</p></div><figure class="fig"><div class="card"><svg viewBox="0 0 860 236" role="img" aria-label="Sunucu haritası: bilgisayardaki geliştirici, Sunucu 1&#x27;de gateway, git2 çekirdek, git-svc, ci-svc, PostgreSQL ve Redis; Sunucu 2&#x27;de git2-runner ve iş konteynerleri. Oklar adım numaralarını taşır."><rect class="zone" x="6" y="22" width="112" height="208" rx="10"/><text class="zl" x="14" y="223">BİLGİSAYAR</text><rect class="zone" x="130" y="22" width="482" height="208" rx="10"/><text class="zl" x="138" y="223">SUNUCU 1 · git2 sunucusu (Docker Compose)</text><rect class="zone" x="624" y="22" width="230" height="208" rx="10"/><text class="zl" x="632" y="223">SUNUCU 2 · build host</text><g class="bx k-other on"><rect x="14" y="108" width="96" height="38" rx="7"/><text class="t" x="62.0" y="124" text-anchor="middle">Geliştirici</text><text class="s" x="62.0" y="138" text-anchor="middle">git · tarayıcı</text></g><g class="bx k-other on"><rect x="142" y="54" width="112" height="38" rx="7"/><text class="t" x="198.0" y="70" text-anchor="middle">gateway</text><text class="s" x="198.0" y="84" text-anchor="middle">HTTPS :443</text></g><g class="bx k-other on"><rect x="142" y="124" width="112" height="38" rx="7"/><text class="t" x="198.0" y="140" text-anchor="middle">git2 çekirdek</text><text class="s" x="198.0" y="154" text-anchor="middle">dash/admin-api</text></g><g class="bx k-other on"><rect x="290" y="54" width="112" height="38" rx="7"/><text class="t" x="346.0" y="70" text-anchor="middle">git-svc</text><text class="s" x="346.0" y="84" text-anchor="middle">:9090 · :9080</text></g><g class="bx k-ci on"><rect x="290" y="124" width="112" height="38" rx="7"/><text class="t" x="346.0" y="140" text-anchor="middle">ci-svc</text><text class="s" x="346.0" y="154" text-anchor="middle">:9090 · :9091</text></g><g class="bx k-db on"><rect x="500" y="124" width="100" height="38" rx="7"/><text class="t" x="550.0" y="140" text-anchor="middle">PostgreSQL</text><text class="s" x="550.0" y="154" text-anchor="middle">kalıcı kayıt</text></g><g class="bx k-rd on"><rect x="500" y="186" width="100" height="38" rx="7"/><text class="t" x="550.0" y="202" text-anchor="middle">Redis</text><text class="s" x="550.0" y="216" text-anchor="middle">uyandırma zili</text></g><g class="bx k-run on"><rect x="640" y="54" width="196" height="38" rx="7"/><text class="t" x="738.0" y="70" text-anchor="middle">git2-runner</text><text class="s" x="738.0" y="84" text-anchor="middle">iş ister, koşturur</text></g><g class="bx k-run on"><rect x="640" y="124" width="196" height="38" rx="7"/><text class="t" x="738.0" y="140" text-anchor="middle">Docker + iş konteyneri</text><text class="s" x="738.0" y="154" text-anchor="middle">git2-job-&lt;id&gt;</text></g><path class="ar p-http" d="M111.7,107.3 L147.4,93.1" marker-end="url(#m-http)"/><path class="ar p-http" d="M256.0,73.0 L287.0,73.0" marker-end="url(#m-http)"/><path class="ar p-sql" d="M403.3,92.6 L497.2,124.9" marker-end="url(#m-sql)"/><path class="ar p-grpc" d="M362.0,94.0 L362.0,121.0" marker-end="url(#m-grpc)"/><path class="ar p-grpc" d="M330.0,122.0 L330.0,95.0" marker-end="url(#m-grpc)"/><path class="ar p-sql" d="M404.0,143.0 L497.0,143.0" marker-end="url(#m-sql)"/><path class="ar p-redis" d="M403.9,160.6 L497.1,188.9" marker-end="url(#m-redis)"/><path class="ar p-grpc" d="M638.1,64.4 L382.9,123.3" marker-end="url(#m-grpc)"/><path class="ar p-docker" d="M738.0,94.0 L738.0,121.0" marker-end="url(#m-docker)"/><path class="ar p-http" d="M198.0,94.0 L198.0,121.0" marker-end="url(#m-http)"/><path class="ar p-grpc" d="M256.0,143.0 L287.0,143.0" marker-end="url(#m-grpc)"/><g class="badge p-http"><rect x="111.5" y="91.2" width="36" height="18" rx="9"/><text x="129.5" y="104.2" text-anchor="middle">1·12</text></g><g class="badge p-http"><rect x="264.0" y="64.0" width="15" height="18" rx="9"/><text x="271.5" y="77.0" text-anchor="middle">1</text></g><g class="badge p-sql"><rect x="442.7" y="99.8" width="15" height="18" rx="9"/><text x="450.2" y="112.8" text-anchor="middle">2</text></g><g class="badge p-grpc"><rect x="354.5" y="98.5" width="15" height="18" rx="9"/><text x="362.0" y="111.5" text-anchor="middle">3</text></g><g class="badge p-grpc"><rect x="322.5" y="99.5" width="15" height="18" rx="9"/><text x="330.0" y="112.5" text-anchor="middle">5</text></g><g class="badge p-sql"><rect x="429.0" y="134.0" width="43" height="18" rx="9"/><text x="450.5" y="147.0" text-anchor="middle">4·6·8</text></g><g class="badge p-redis"><rect x="425.5" y="165.8" width="50" height="18" rx="9"/><text x="450.5" y="178.8" text-anchor="middle">4·7·10</text></g><g class="badge p-grpc"><rect x="494.7" y="81.9" width="57" height="18" rx="9"/><text x="523.2" y="94.9" text-anchor="middle">8·10·11</text></g><g class="badge p-docker"><rect x="730.5" y="98.5" width="15" height="18" rx="9"/><text x="738.0" y="111.5" text-anchor="middle">9</text></g><g class="badge p-http"><rect x="187.0" y="98.5" width="22" height="18" rx="9"/><text x="198.0" y="111.5" text-anchor="middle">12</text></g><g class="badge p-grpc"><rect x="260.5" y="134.0" width="22" height="18" rx="9"/><text x="271.5" y="147.0" text-anchor="middle">12</text></g></svg></div><figcaption>Kesik çizgili çerçeveler makineleri gösterir. Oklardaki numaralar <a href="#yolculuk">bölüm 3</a>'teki adımlardır.</figcaption></figure><div class="legend"><span><i class="leg-http"></i>HTTPS / Git</span><span><i class="leg-grpc"></i>gRPC çağrısı</span><span><i class="leg-sql"></i>PostgreSQL</span><span><i class="leg-redis"></i>Redis zili</span><span><i class="leg-docker"></i>Docker Engine API</span></div><div class="tbl"><table><thead><tr><th>Kutu</th><th>Nerede</th><th>Port</th><th>Ne yapar</th><th>Kim ona bağlanır</th></tr></thead><tbody><tr><td><span class="kind" style="background:var(--mute)"></span>gateway</td><td>Sunucu 1</td><td class="port">443 (dışarı açık), 80</td><td>HTTPS'i karşılar, kim olduğunu kontrol eder, isteği içeri yönlendirir</td><td>tarayıcı, git</td></tr><tr><td><span class="kind" style="background:var(--mute)"></span>git2 çekirdek</td><td>Sunucu 1</td><td class="port">8080 (iç)</td><td>Web sayfaları, dash-api, admin-api, giriş. Kullanıcının yetkisine bakar</td><td>gateway</td></tr><tr><td><span class="kind" style="background:var(--mute)"></span>git-svc</td><td>Sunucu 1</td><td class="port">9090 gRPC · 9080 Git</td><td>Depoları diskte tutar, dosya okutur (GetBlob), olaylarını relay ile dağıtır</td><td>gateway, ci-svc</td></tr><tr><td><span class="kind" style="background:var(--cp)"></span>ci-svc</td><td>Sunucu 1 (Compose'a ekleme: deploy#21)</td><td class="port">9090 iç · 9091 runner</td><td>Pipeline'lar, iş kuyruğu, loglar, sırlar, izleme</td><td>git-svc relay, dash-api, admin-api, runner</td></tr><tr><td><span class="kind" style="background:var(--db)"></span>PostgreSQL</td><td>Sunucu 1</td><td class="port">5432 (iç)</td><td>Kalıcı kayıt. Her servisin kendi şeması var: ci-svc yalnızca <code>ci_svc</code>'yi okur</td><td>her servis kendi şemasına</td></tr><tr><td><span class="kind" style="background:var(--rd)"></span>Redis</td><td>Sunucu 1</td><td class="port">6379 (iç)</td><td>Anlık &laquo;uyan&raquo; zilleri ve sayaçlar. Kalıcı değil, yedeklenmez</td><td>ci-svc (ve diğer servisler)</td></tr><tr><td><span class="kind" style="background:var(--dp)"></span>git2-runner</td><td>Sunucu 2</td><td class="port">yok (dışarı arar)</td><td>İş ister, konteynerde koşturur, log ve sonuç gönderir</td><td>kimse; o ci-svc:9091'i arar</td></tr><tr><td><span class="kind" style="background:var(--dp)"></span>Docker + iş konteynerleri</td><td>Sunucu 2</td><td class="port">—</td><td>Her işin yalıtılmış kutusu: <code>git2-job-&lt;id&gt;</code></td><td>runner (Docker API ile)</td></tr></tbody></table></div><div class="grid g3"><div class="card"><h3>Neden iki sunucu?</h3><p class="note" style="margin-top:6px">CI işleri başkalarının kodunu çalıştırır. Bir iş kötü niyetli olsa bile git2'nin verisine, veritabanına ve sırlarına ulaşamasın diye işler ayrı bir makinede koşar.</p></div><div class="card"><h3>Kim kimi arar?</h3><p class="note" style="margin-top:6px">Runner her zaman <b>dışarı doğru</b> ci-svc'yi arar. Sunucu 2'ye içeri hiçbir bağlantı açılmaz; yalnızca ci-svc'nin 9091 portu açık olmalı.</p></div><div class="card"><h3>Tarayıcı neyi görür?</h3><p class="note" style="margin-top:6px">Yalnızca gateway'i. ci-svc, git-svc, Postgres ve Redis dışarıya kapalıdır; tarayıcı onlara hep dash-api ya da admin-api üzerinden ulaşır.</p></div></div></section><section id="yolculuk"><div class="sec-head"><span class="n">3</span><h2>Bir push'un yolculuğu: 12 adım</h2><p class="lead">Geliştirici <code>main</code>'e bir commit itiyor. <code>.git2-ci.yml</code>'de <code>build</code> ve <code>test</code> diye iki aşama var.</p></div><div class="legend"><span><i class="leg-http"></i>HTTPS / Git</span><span><i class="leg-grpc"></i>gRPC çağrısı</span><span><i class="leg-sql"></i>PostgreSQL</span><span><i class="leg-redis"></i>Redis zili</span><span><i class="leg-docker"></i>Docker Engine API</span></div><div class="steps"><article class="step" id="adim-1"><div class="step-head"><span class="num">1</span><h3>Geliştirici <code>git push</code> yapar</h3><span class="st st-main">main&#x27;de</span></div><div class="fig"><svg viewBox="0 0 860 236" role="img" aria-label="Adım 1: Geliştirici git push yapar"><rect class="zone" x="6" y="22" width="112" height="208" rx="10"/><text class="zl" x="14" y="223">BİLGİSAYAR</text><rect class="zone" x="130" y="22" width="482" height="208" rx="10"/><text class="zl" x="138" y="223">SUNUCU 1 · git2 sunucusu (Docker Compose)</text><rect class="zone" x="624" y="22" width="230" height="208" rx="10"/><text class="zl" x="632" y="223">SUNUCU 2 · build host</text><g class="bx k-other on"><rect x="14" y="108" width="96" height="38" rx="7"/><text class="t" x="62.0" y="124" text-anchor="middle">Geliştirici</text><text class="s" x="62.0" y="138" text-anchor="middle">git · tarayıcı</text></g><g class="bx k-other on"><rect x="142" y="54" width="112" height="38" rx="7"/><text class="t" x="198.0" y="70" text-anchor="middle">gateway</text><text class="s" x="198.0" y="84" text-anchor="middle">HTTPS :443</text></g><g class="bx k-other off"><rect x="142" y="124" width="112" height="38" rx="7"/><text class="t" x="198.0" y="140" text-anchor="middle">git2 çekirdek</text><text class="s" x="198.0" y="154" text-anchor="middle">dash/admin-api</text></g><g class="bx k-other on"><rect x="290" y="54" width="112" height="38" rx="7"/><text class="t" x="346.0" y="70" text-anchor="middle">git-svc</text><text class="s" x="346.0" y="84" text-anchor="middle">:9090 · :9080</text></g><g class="bx k-ci off"><rect x="290" y="124" width="112" height="38" rx="7"/><text class="t" x="346.0" y="140" text-anchor="middle">ci-svc</text><text class="s" x="346.0" y="154" text-anchor="middle">:9090 · :9091</text></g><g class="bx k-db off"><rect x="500" y="124" width="100" height="38" rx="7"/><text class="t" x="550.0" y="140" text-anchor="middle">PostgreSQL</text><text class="s" x="550.0" y="154" text-anchor="middle">kalıcı kayıt</text></g><g class="bx k-rd off"><rect x="500" y="186" width="100" height="38" rx="7"/><text class="t" x="550.0" y="202" text-anchor="middle">Redis</text><text class="s" x="550.0" y="216" text-anchor="middle">uyandırma zili</text></g><g class="bx k-run off"><rect x="640" y="54" width="196" height="38" rx="7"/><text class="t" x="738.0" y="70" text-anchor="middle">git2-runner</text><text class="s" x="738.0" y="84" text-anchor="middle">iş ister, koşturur</text></g><g class="bx k-run off"><rect x="640" y="124" width="196" height="38" rx="7"/><text class="t" x="738.0" y="140" text-anchor="middle">Docker + iş konteyneri</text><text class="s" x="738.0" y="154" text-anchor="middle">git2-job-&lt;id&gt;</text></g><path class="ar p-http" d="M111.7,107.3 L147.4,93.1" marker-end="url(#m-http)"/><text class="al p-http" x="62" y="100" text-anchor="middle">git push</text><path class="ar p-http" d="M256.0,73.0 L287.0,73.0" marker-end="url(#m-http)"/><text class="al p-http" x="272" y="47" text-anchor="middle">Git (Smart HTTP)</text></svg></div><div class="step-body"><ol class="what"><li>Git, yeni commit'leri HTTPS ile gönderir. Dışarıya açık <b>tek kapı gateway'dir</b> (443).</li><li>gateway kullanıcı adı ve şifreyi kontrol eder, isteği içerideki git-svc'ye iletir. Kimin ittiği bir başlıkla gider.</li><li>git-svc commit'leri diske, depo klasörüne yazar ve branch'i yeni commit'e taşır.</li></ol><div class="facts"><div class="fact"><b>yazılan</b><span>disk: depo klasörü</span></div><div class="fact"><b>protokol</b><span>HTTPS</span></div></div></div></article><article class="step" id="adim-2"><div class="step-head"><span class="num">2</span><h3>git-svc olayı <b>giden kutusuna</b> (outbox) yazar</h3><span class="st st-main">codeplane v0.3.0</span></div><div class="fig"><svg viewBox="0 0 860 236" role="img" aria-label="Adım 2: git-svc olayı giden kutusuna (outbox) yazar"><rect class="zone" x="6" y="22" width="112" height="208" rx="10"/><text class="zl" x="14" y="223">BİLGİSAYAR</text><rect class="zone" x="130" y="22" width="482" height="208" rx="10"/><text class="zl" x="138" y="223">SUNUCU 1 · git2 sunucusu (Docker Compose)</text><rect class="zone" x="624" y="22" width="230" height="208" rx="10"/><text class="zl" x="632" y="223">SUNUCU 2 · build host</text><g class="bx k-other off"><rect x="14" y="108" width="96" height="38" rx="7"/><text class="t" x="62.0" y="124" text-anchor="middle">Geliştirici</text><text class="s" x="62.0" y="138" text-anchor="middle">git · tarayıcı</text></g><g class="bx k-other off"><rect x="142" y="54" width="112" height="38" rx="7"/><text class="t" x="198.0" y="70" text-anchor="middle">gateway</text><text class="s" x="198.0" y="84" text-anchor="middle">HTTPS :443</text></g><g class="bx k-other off"><rect x="142" y="124" width="112" height="38" rx="7"/><text class="t" x="198.0" y="140" text-anchor="middle">git2 çekirdek</text><text class="s" x="198.0" y="154" text-anchor="middle">dash/admin-api</text></g><g class="bx k-other on"><rect x="290" y="54" width="112" height="38" rx="7"/><text class="t" x="346.0" y="70" text-anchor="middle">git-svc</text><text class="s" x="346.0" y="84" text-anchor="middle">:9090 · :9080</text></g><g class="bx k-ci off"><rect x="290" y="124" width="112" height="38" rx="7"/><text class="t" x="346.0" y="140" text-anchor="middle">ci-svc</text><text class="s" x="346.0" y="154" text-anchor="middle">:9090 · :9091</text></g><g class="bx k-db on"><rect x="500" y="124" width="100" height="38" rx="7"/><text class="t" x="550.0" y="140" text-anchor="middle">PostgreSQL</text><text class="s" x="550.0" y="154" text-anchor="middle">kalıcı kayıt</text></g><g class="bx k-rd off"><rect x="500" y="186" width="100" height="38" rx="7"/><text class="t" x="550.0" y="202" text-anchor="middle">Redis</text><text class="s" x="550.0" y="216" text-anchor="middle">uyandırma zili</text></g><g class="bx k-run off"><rect x="640" y="54" width="196" height="38" rx="7"/><text class="t" x="738.0" y="70" text-anchor="middle">git2-runner</text><text class="s" x="738.0" y="84" text-anchor="middle">iş ister, koşturur</text></g><g class="bx k-run off"><rect x="640" y="124" width="196" height="38" rx="7"/><text class="t" x="738.0" y="140" text-anchor="middle">Docker + iş konteyneri</text><text class="s" x="738.0" y="154" text-anchor="middle">git2-job-&lt;id&gt;</text></g><path class="ar p-sql" d="M403.3,92.6 L497.2,124.9" marker-end="url(#m-sql)"/><text class="al p-sql" x="452" y="100" text-anchor="start">git_svc.outbox</text></svg></div><div class="step-body"><ol class="what"><li>Branch taşındıktan hemen sonra git-svc Postgres'e bir satır ekler: <code>git.v1.RepositoryPushed</code>.</li><li>Satırda: hangi depo, kim itti, hangi ref eski SHA'dan yeni SHA'ya geçti.</li><li>Neden önce bir tabloya? ci-svc o an kapalı olsa bile olay kaybolmasın diye. Kutu kalıcıdır.</li></ol><div class="facts"><div class="fact"><b>yazılan</b><span>git_svc.outbox</span></div><div class="fact"><b>protokol</b><span>SQL</span></div></div></div></article><article class="step" id="adim-3"><div class="step-head"><span class="num">3</span><h3>Relay olayı ci-svc'ye <b>teslim eder</b></h3><span class="st st-pr">PR #49 · onaylı, merge bekliyor</span></div><div class="fig"><svg viewBox="0 0 860 236" role="img" aria-label="Adım 3: Relay olayı ci-svc&#x27;ye teslim eder"><rect class="zone" x="6" y="22" width="112" height="208" rx="10"/><text class="zl" x="14" y="223">BİLGİSAYAR</text><rect class="zone" x="130" y="22" width="482" height="208" rx="10"/><text class="zl" x="138" y="223">SUNUCU 1 · git2 sunucusu (Docker Compose)</text><rect class="zone" x="624" y="22" width="230" height="208" rx="10"/><text class="zl" x="632" y="223">SUNUCU 2 · build host</text><g class="bx k-other off"><rect x="14" y="108" width="96" height="38" rx="7"/><text class="t" x="62.0" y="124" text-anchor="middle">Geliştirici</text><text class="s" x="62.0" y="138" text-anchor="middle">git · tarayıcı</text></g><g class="bx k-other off"><rect x="142" y="54" width="112" height="38" rx="7"/><text class="t" x="198.0" y="70" text-anchor="middle">gateway</text><text class="s" x="198.0" y="84" text-anchor="middle">HTTPS :443</text></g><g class="bx k-other off"><rect x="142" y="124" width="112" height="38" rx="7"/><text class="t" x="198.0" y="140" text-anchor="middle">git2 çekirdek</text><text class="s" x="198.0" y="154" text-anchor="middle">dash/admin-api</text></g><g class="bx k-other on"><rect x="290" y="54" width="112" height="38" rx="7"/><text class="t" x="346.0" y="70" text-anchor="middle">git-svc</text><text class="s" x="346.0" y="84" text-anchor="middle">:9090 · :9080</text></g><g class="bx k-ci on"><rect x="290" y="124" width="112" height="38" rx="7"/><text class="t" x="346.0" y="140" text-anchor="middle">ci-svc</text><text class="s" x="346.0" y="154" text-anchor="middle">:9090 · :9091</text></g><g class="bx k-db off"><rect x="500" y="124" width="100" height="38" rx="7"/><text class="t" x="550.0" y="140" text-anchor="middle">PostgreSQL</text><text class="s" x="550.0" y="154" text-anchor="middle">kalıcı kayıt</text></g><g class="bx k-rd off"><rect x="500" y="186" width="100" height="38" rx="7"/><text class="t" x="550.0" y="202" text-anchor="middle">Redis</text><text class="s" x="550.0" y="216" text-anchor="middle">uyandırma zili</text></g><g class="bx k-run off"><rect x="640" y="54" width="196" height="38" rx="7"/><text class="t" x="738.0" y="70" text-anchor="middle">git2-runner</text><text class="s" x="738.0" y="84" text-anchor="middle">iş ister, koşturur</text></g><g class="bx k-run off"><rect x="640" y="124" width="196" height="38" rx="7"/><text class="t" x="738.0" y="140" text-anchor="middle">Docker + iş konteyneri</text><text class="s" x="738.0" y="154" text-anchor="middle">git2-job-&lt;id&gt;</text></g><path class="ar p-grpc" d="M362.0,94.0 L362.0,121.0" marker-end="url(#m-grpc)"/><text class="al p-grpc" x="368" y="112" text-anchor="start">EventSink.Deliver</text></svg></div><div class="step-body"><ol class="what"><li>git-svc'nin içindeki relay <b>her saniye</b> outbox'a bakar ve gönderilmemiş satırları alır.</li><li>Her satır için ci-svc'nin <code>EventSink.Deliver</code> fonksiyonunu ağ üzerinden çağırır (gRPC, iç ağ, port 9090).</li><li>ci-svc &laquo;tamam&raquo; derse satır &laquo;gönderildi&raquo; olur. Cevap gelmezse artan aralıklarla tekrar dener ve olayı asla silmez.</li></ol><div class="facts"><div class="fact"><b>süre</b><span>≤ 1 sn</span></div><div class="fact"><b>protokol</b><span>gRPC :9090</span></div></div></div></article><article class="step" id="adim-4"><div class="step-head"><span class="num">4</span><h3>ci-svc olayı <b>gelen kutusuna</b> (inbox) yazar, zili çalar</h3><span class="st st-pr">PR #49 · onaylı, merge bekliyor</span></div><div class="fig"><svg viewBox="0 0 860 236" role="img" aria-label="Adım 4: ci-svc olayı gelen kutusuna (inbox) yazar, zili çalar"><rect class="zone" x="6" y="22" width="112" height="208" rx="10"/><text class="zl" x="14" y="223">BİLGİSAYAR</text><rect class="zone" x="130" y="22" width="482" height="208" rx="10"/><text class="zl" x="138" y="223">SUNUCU 1 · git2 sunucusu (Docker Compose)</text><rect class="zone" x="624" y="22" width="230" height="208" rx="10"/><text class="zl" x="632" y="223">SUNUCU 2 · build host</text><g class="bx k-other off"><rect x="14" y="108" width="96" height="38" rx="7"/><text class="t" x="62.0" y="124" text-anchor="middle">Geliştirici</text><text class="s" x="62.0" y="138" text-anchor="middle">git · tarayıcı</text></g><g class="bx k-other off"><rect x="142" y="54" width="112" height="38" rx="7"/><text class="t" x="198.0" y="70" text-anchor="middle">gateway</text><text class="s" x="198.0" y="84" text-anchor="middle">HTTPS :443</text></g><g class="bx k-other off"><rect x="142" y="124" width="112" height="38" rx="7"/><text class="t" x="198.0" y="140" text-anchor="middle">git2 çekirdek</text><text class="s" x="198.0" y="154" text-anchor="middle">dash/admin-api</text></g><g class="bx k-other off"><rect x="290" y="54" width="112" height="38" rx="7"/><text class="t" x="346.0" y="70" text-anchor="middle">git-svc</text><text class="s" x="346.0" y="84" text-anchor="middle">:9090 · :9080</text></g><g class="bx k-ci on"><rect x="290" y="124" width="112" height="38" rx="7"/><text class="t" x="346.0" y="140" text-anchor="middle">ci-svc</text><text class="s" x="346.0" y="154" text-anchor="middle">:9090 · :9091</text></g><g class="bx k-db on"><rect x="500" y="124" width="100" height="38" rx="7"/><text class="t" x="550.0" y="140" text-anchor="middle">PostgreSQL</text><text class="s" x="550.0" y="154" text-anchor="middle">kalıcı kayıt</text></g><g class="bx k-rd on"><rect x="500" y="186" width="100" height="38" rx="7"/><text class="t" x="550.0" y="202" text-anchor="middle">Redis</text><text class="s" x="550.0" y="216" text-anchor="middle">uyandırma zili</text></g><g class="bx k-run off"><rect x="640" y="54" width="196" height="38" rx="7"/><text class="t" x="738.0" y="70" text-anchor="middle">git2-runner</text><text class="s" x="738.0" y="84" text-anchor="middle">iş ister, koşturur</text></g><g class="bx k-run off"><rect x="640" y="124" width="196" height="38" rx="7"/><text class="t" x="738.0" y="140" text-anchor="middle">Docker + iş konteyneri</text><text class="s" x="738.0" y="154" text-anchor="middle">git2-job-&lt;id&gt;</text></g><path class="ar p-sql" d="M404.0,143.0 L497.0,143.0" marker-end="url(#m-sql)"/><text class="al p-sql" x="451" y="137" text-anchor="middle">ci_svc.inbox</text><path class="ar p-redis" d="M403.9,160.6 L497.1,188.9" marker-end="url(#m-redis)"/><text class="al p-redis" x="492" y="212" text-anchor="end">ci:inbox:wake</text></svg></div><div class="step-body"><ol class="what"><li>Deliver <b>sadece kaydeder</b>: <code>ci_svc.inbox</code>'a bir satır. <code>event_id</code> benzersizdir; aynı olay ikinci kez gelirse hiçbir şey değişmez.</li><li>Sonra Redis'te <code>ci:inbox:wake</code> zilini çalar. Zil veri taşımaz, yalnızca &laquo;bakın, yeni bir şey var&raquo; der.</li><li>Cevap birkaç milisaniyede döner. Asıl iş bir sonraki adımda yapılır.</li></ol><div class="facts"><div class="fact"><b>yazılan</b><span>ci_svc.inbox</span></div><div class="fact"><b>süre</b><span>~5 ms</span></div></div></div></article><article class="step" id="adim-5"><div class="step-head"><span class="num">5</span><h3>İşçi <code>.git2-ci.yml</code> dosyasını okur</h3><span class="st st-pr">PR #49 · onaylı, merge bekliyor</span></div><div class="fig"><svg viewBox="0 0 860 236" role="img" aria-label="Adım 5: İşçi .git2-ci.yml dosyasını okur"><rect class="zone" x="6" y="22" width="112" height="208" rx="10"/><text class="zl" x="14" y="223">BİLGİSAYAR</text><rect class="zone" x="130" y="22" width="482" height="208" rx="10"/><text class="zl" x="138" y="223">SUNUCU 1 · git2 sunucusu (Docker Compose)</text><rect class="zone" x="624" y="22" width="230" height="208" rx="10"/><text class="zl" x="632" y="223">SUNUCU 2 · build host</text><g class="bx k-other off"><rect x="14" y="108" width="96" height="38" rx="7"/><text class="t" x="62.0" y="124" text-anchor="middle">Geliştirici</text><text class="s" x="62.0" y="138" text-anchor="middle">git · tarayıcı</text></g><g class="bx k-other off"><rect x="142" y="54" width="112" height="38" rx="7"/><text class="t" x="198.0" y="70" text-anchor="middle">gateway</text><text class="s" x="198.0" y="84" text-anchor="middle">HTTPS :443</text></g><g class="bx k-other off"><rect x="142" y="124" width="112" height="38" rx="7"/><text class="t" x="198.0" y="140" text-anchor="middle">git2 çekirdek</text><text class="s" x="198.0" y="154" text-anchor="middle">dash/admin-api</text></g><g class="bx k-other on"><rect x="290" y="54" width="112" height="38" rx="7"/><text class="t" x="346.0" y="70" text-anchor="middle">git-svc</text><text class="s" x="346.0" y="84" text-anchor="middle">:9090 · :9080</text></g><g class="bx k-ci on"><rect x="290" y="124" width="112" height="38" rx="7"/><text class="t" x="346.0" y="140" text-anchor="middle">ci-svc</text><text class="s" x="346.0" y="154" text-anchor="middle">:9090 · :9091</text></g><g class="bx k-db on"><rect x="500" y="124" width="100" height="38" rx="7"/><text class="t" x="550.0" y="140" text-anchor="middle">PostgreSQL</text><text class="s" x="550.0" y="154" text-anchor="middle">kalıcı kayıt</text></g><g class="bx k-rd off"><rect x="500" y="186" width="100" height="38" rx="7"/><text class="t" x="550.0" y="202" text-anchor="middle">Redis</text><text class="s" x="550.0" y="216" text-anchor="middle">uyandırma zili</text></g><g class="bx k-run off"><rect x="640" y="54" width="196" height="38" rx="7"/><text class="t" x="738.0" y="70" text-anchor="middle">git2-runner</text><text class="s" x="738.0" y="84" text-anchor="middle">iş ister, koşturur</text></g><g class="bx k-run off"><rect x="640" y="124" width="196" height="38" rx="7"/><text class="t" x="738.0" y="140" text-anchor="middle">Docker + iş konteyneri</text><text class="s" x="738.0" y="154" text-anchor="middle">git2-job-&lt;id&gt;</text></g><path class="ar p-sql" d="M404.0,143.0 L497.0,143.0" marker-end="url(#m-sql)"/><text class="al p-sql" x="451" y="137" text-anchor="middle">kirala · 2 dk</text><path class="ar p-grpc" d="M330.0,122.0 L330.0,95.0" marker-end="url(#m-grpc)"/><text class="al p-grpc" x="324" y="112" text-anchor="end">GetBlob(.git2-ci.yml)</text></svg></div><div class="step-body"><ol class="what"><li>ci-svc'deki inbox işçisi zili duyar; zil kaybolsa bile 5 saniyede bir zaten bakar.</li><li>Satırı <b>2 dakikalık kirayla</b> alır. Kira süresince ci-svc'nin başka bir kopyası aynı satırı almaz.</li><li>Olaydaki her branch ve tag için git-svc'ye sorar: &laquo;bu commit'te <code>.git2-ci.yml</code> var mı?&raquo; (<code>CommitService.GetBlob</code>).</li><li>Dosya yoksa bu commit için CI yoktur ve iş biter. git-svc kapalıysa satır bekler ve 5 sn, 10 sn, 20 sn… en çok 5 dk arayla yeniden denenir.</li></ol><div class="facts"><div class="fact"><b>protokol</b><span>gRPC → git-svc :9090</span></div><div class="fact"><b>bekleme</b><span>5 sn yoklama</span></div></div></div></article><article class="step" id="adim-6"><div class="step-head"><span class="num">6</span><h3>Pipeline ve işler oluşur</h3><span class="st st-main">main&#x27;de</span></div><div class="fig"><svg viewBox="0 0 860 236" role="img" aria-label="Adım 6: Pipeline ve işler oluşur"><rect class="zone" x="6" y="22" width="112" height="208" rx="10"/><text class="zl" x="14" y="223">BİLGİSAYAR</text><rect class="zone" x="130" y="22" width="482" height="208" rx="10"/><text class="zl" x="138" y="223">SUNUCU 1 · git2 sunucusu (Docker Compose)</text><rect class="zone" x="624" y="22" width="230" height="208" rx="10"/><text class="zl" x="632" y="223">SUNUCU 2 · build host</text><g class="bx k-other off"><rect x="14" y="108" width="96" height="38" rx="7"/><text class="t" x="62.0" y="124" text-anchor="middle">Geliştirici</text><text class="s" x="62.0" y="138" text-anchor="middle">git · tarayıcı</text></g><g class="bx k-other off"><rect x="142" y="54" width="112" height="38" rx="7"/><text class="t" x="198.0" y="70" text-anchor="middle">gateway</text><text class="s" x="198.0" y="84" text-anchor="middle">HTTPS :443</text></g><g class="bx k-other off"><rect x="142" y="124" width="112" height="38" rx="7"/><text class="t" x="198.0" y="140" text-anchor="middle">git2 çekirdek</text><text class="s" x="198.0" y="154" text-anchor="middle">dash/admin-api</text></g><g class="bx k-other off"><rect x="290" y="54" width="112" height="38" rx="7"/><text class="t" x="346.0" y="70" text-anchor="middle">git-svc</text><text class="s" x="346.0" y="84" text-anchor="middle">:9090 · :9080</text></g><g class="bx k-ci on"><rect x="290" y="124" width="112" height="38" rx="7"/><text class="t" x="346.0" y="140" text-anchor="middle">ci-svc</text><text class="s" x="346.0" y="154" text-anchor="middle">:9090 · :9091</text></g><g class="bx k-db on"><rect x="500" y="124" width="100" height="38" rx="7"/><text class="t" x="550.0" y="140" text-anchor="middle">PostgreSQL</text><text class="s" x="550.0" y="154" text-anchor="middle">kalıcı kayıt</text></g><g class="bx k-rd off"><rect x="500" y="186" width="100" height="38" rx="7"/><text class="t" x="550.0" y="202" text-anchor="middle">Redis</text><text class="s" x="550.0" y="216" text-anchor="middle">uyandırma zili</text></g><g class="bx k-run off"><rect x="640" y="54" width="196" height="38" rx="7"/><text class="t" x="738.0" y="70" text-anchor="middle">git2-runner</text><text class="s" x="738.0" y="84" text-anchor="middle">iş ister, koşturur</text></g><g class="bx k-run off"><rect x="640" y="124" width="196" height="38" rx="7"/><text class="t" x="738.0" y="140" text-anchor="middle">Docker + iş konteyneri</text><text class="s" x="738.0" y="154" text-anchor="middle">git2-job-&lt;id&gt;</text></g><path class="ar p-sql" d="M404.0,143.0 L497.0,143.0" marker-end="url(#m-sql)"/><text class="al p-sql" x="451" y="137" text-anchor="middle">pipeline + jobs</text></svg></div><div class="step-body"><ol class="what"><li>YAML çözülür: aşamalar, işler, image, script, etiketler, süre sınırı. Dosya hatalıysa pipeline doğrudan <b>FAILED</b> olur ve hata mesajı içine yazılır.</li><li><b>Tek bir Postgres işleminde</b> (transaction): bir <code>pipelines</code> satırı, her iş için bir <code>jobs</code> satırı (durum: <i>created</i>), ilk aşamanın işleri <i>pending</i> (kuyrukta), outbox'a <code>PipelineCreated</code>.</li><li>Ya hepsi yazılır ya hiçbiri. Yarım pipeline olmaz.</li><li>Anahtar <code>&lt;event_id&gt;:&lt;ref&gt;</code> olduğu için aynı push iki kez işlense bile ikinci pipeline açılmaz.</li></ol><div class="facts"><div class="fact"><b>yazılan</b><span>pipelines · jobs · outbox</span></div><div class="fact"><b>kural</b><span>hepsi ya da hiçbiri</span></div></div></div></article><article class="step" id="adim-7"><div class="step-head"><span class="num">7</span><h3>Bekleyen runner istekleri <b>uyandırılır</b></h3><span class="st st-main">main&#x27;de</span></div><div class="fig"><svg viewBox="0 0 860 236" role="img" aria-label="Adım 7: Bekleyen runner istekleri uyandırılır"><rect class="zone" x="6" y="22" width="112" height="208" rx="10"/><text class="zl" x="14" y="223">BİLGİSAYAR</text><rect class="zone" x="130" y="22" width="482" height="208" rx="10"/><text class="zl" x="138" y="223">SUNUCU 1 · git2 sunucusu (Docker Compose)</text><rect class="zone" x="624" y="22" width="230" height="208" rx="10"/><text class="zl" x="632" y="223">SUNUCU 2 · build host</text><g class="bx k-other off"><rect x="14" y="108" width="96" height="38" rx="7"/><text class="t" x="62.0" y="124" text-anchor="middle">Geliştirici</text><text class="s" x="62.0" y="138" text-anchor="middle">git · tarayıcı</text></g><g class="bx k-other off"><rect x="142" y="54" width="112" height="38" rx="7"/><text class="t" x="198.0" y="70" text-anchor="middle">gateway</text><text class="s" x="198.0" y="84" text-anchor="middle">HTTPS :443</text></g><g class="bx k-other off"><rect x="142" y="124" width="112" height="38" rx="7"/><text class="t" x="198.0" y="140" text-anchor="middle">git2 çekirdek</text><text class="s" x="198.0" y="154" text-anchor="middle">dash/admin-api</text></g><g class="bx k-other off"><rect x="290" y="54" width="112" height="38" rx="7"/><text class="t" x="346.0" y="70" text-anchor="middle">git-svc</text><text class="s" x="346.0" y="84" text-anchor="middle">:9090 · :9080</text></g><g class="bx k-ci on"><rect x="290" y="124" width="112" height="38" rx="7"/><text class="t" x="346.0" y="140" text-anchor="middle">ci-svc</text><text class="s" x="346.0" y="154" text-anchor="middle">:9090 · :9091</text></g><g class="bx k-db off"><rect x="500" y="124" width="100" height="38" rx="7"/><text class="t" x="550.0" y="140" text-anchor="middle">PostgreSQL</text><text class="s" x="550.0" y="154" text-anchor="middle">kalıcı kayıt</text></g><g class="bx k-rd on"><rect x="500" y="186" width="100" height="38" rx="7"/><text class="t" x="550.0" y="202" text-anchor="middle">Redis</text><text class="s" x="550.0" y="216" text-anchor="middle">uyandırma zili</text></g><g class="bx k-run off"><rect x="640" y="54" width="196" height="38" rx="7"/><text class="t" x="738.0" y="70" text-anchor="middle">git2-runner</text><text class="s" x="738.0" y="84" text-anchor="middle">iş ister, koşturur</text></g><g class="bx k-run off"><rect x="640" y="124" width="196" height="38" rx="7"/><text class="t" x="738.0" y="140" text-anchor="middle">Docker + iş konteyneri</text><text class="s" x="738.0" y="154" text-anchor="middle">git2-job-&lt;id&gt;</text></g><path class="ar p-redis" d="M403.9,160.6 L497.1,188.9" marker-end="url(#m-redis)"/><text class="al p-redis" x="492" y="212" text-anchor="end">zil: ci:jobs:wake</text></svg></div><div class="step-body"><ol class="what"><li>ci-svc Redis'te <code>ci:jobs:wake</code> zilini çalar. Zili ci-svc'nin kendisi ve varsa diğer kopyaları dinler.</li><li>Zil, o anda &laquo;iş var mı?&raquo; diye bekleyen runner isteklerini uyandırır. İş milisaniyeler içinde verilir.</li><li><b>Runner Redis'i hiç görmez.</b> Build host'lar güvenilmez kabul edilir; yalnızca ci-svc'nin 9091 portunu görür.</li><li>Redis kapalıysa bekleyen istekler zaten 3 saniyede bir Postgres'e bakar; iş biraz gecikir ama kaybolmaz.</li></ol><div class="facts"><div class="fact"><b>kanal</b><span>ci:jobs:wake</span></div><div class="fact"><b>Redis yoksa</b><span>≤ 3 sn gecikme</span></div></div></div></article><article class="step" id="adim-8"><div class="step-head"><span class="num">8</span><h3>Runner işi alır (<i>long poll</i>)</h3><span class="st st-main">main&#x27;de</span></div><div class="fig"><svg viewBox="0 0 860 236" role="img" aria-label="Adım 8: Runner işi alır (long poll)"><rect class="zone" x="6" y="22" width="112" height="208" rx="10"/><text class="zl" x="14" y="223">BİLGİSAYAR</text><rect class="zone" x="130" y="22" width="482" height="208" rx="10"/><text class="zl" x="138" y="223">SUNUCU 1 · git2 sunucusu (Docker Compose)</text><rect class="zone" x="624" y="22" width="230" height="208" rx="10"/><text class="zl" x="632" y="223">SUNUCU 2 · build host</text><g class="bx k-other off"><rect x="14" y="108" width="96" height="38" rx="7"/><text class="t" x="62.0" y="124" text-anchor="middle">Geliştirici</text><text class="s" x="62.0" y="138" text-anchor="middle">git · tarayıcı</text></g><g class="bx k-other off"><rect x="142" y="54" width="112" height="38" rx="7"/><text class="t" x="198.0" y="70" text-anchor="middle">gateway</text><text class="s" x="198.0" y="84" text-anchor="middle">HTTPS :443</text></g><g class="bx k-other off"><rect x="142" y="124" width="112" height="38" rx="7"/><text class="t" x="198.0" y="140" text-anchor="middle">git2 çekirdek</text><text class="s" x="198.0" y="154" text-anchor="middle">dash/admin-api</text></g><g class="bx k-other off"><rect x="290" y="54" width="112" height="38" rx="7"/><text class="t" x="346.0" y="70" text-anchor="middle">git-svc</text><text class="s" x="346.0" y="84" text-anchor="middle">:9090 · :9080</text></g><g class="bx k-ci on"><rect x="290" y="124" width="112" height="38" rx="7"/><text class="t" x="346.0" y="140" text-anchor="middle">ci-svc</text><text class="s" x="346.0" y="154" text-anchor="middle">:9090 · :9091</text></g><g class="bx k-db on"><rect x="500" y="124" width="100" height="38" rx="7"/><text class="t" x="550.0" y="140" text-anchor="middle">PostgreSQL</text><text class="s" x="550.0" y="154" text-anchor="middle">kalıcı kayıt</text></g><g class="bx k-rd off"><rect x="500" y="186" width="100" height="38" rx="7"/><text class="t" x="550.0" y="202" text-anchor="middle">Redis</text><text class="s" x="550.0" y="216" text-anchor="middle">uyandırma zili</text></g><g class="bx k-run on"><rect x="640" y="54" width="196" height="38" rx="7"/><text class="t" x="738.0" y="70" text-anchor="middle">git2-runner</text><text class="s" x="738.0" y="84" text-anchor="middle">iş ister, koşturur</text></g><g class="bx k-run off"><rect x="640" y="124" width="196" height="38" rx="7"/><text class="t" x="738.0" y="140" text-anchor="middle">Docker + iş konteyneri</text><text class="s" x="738.0" y="154" text-anchor="middle">git2-job-&lt;id&gt;</text></g><path class="ar p-grpc" d="M638.1,64.4 L382.9,123.3" marker-end="url(#m-grpc)"/><text class="al p-grpc" x="628" y="50" text-anchor="end">RequestJob ⇄ iş + sırlar</text><path class="ar p-sql" d="M404.0,143.0 L497.0,143.0" marker-end="url(#m-sql)"/><text class="al p-sql" x="451" y="137" text-anchor="middle">SKIP LOCKED</text></svg></div><div class="step-body"><ol class="what"><li>Runner build host'tan dışarıya doğru bağlanır ve sorar: &laquo;bana iş var mı?&raquo; (<code>RequestJob</code>, port 9091, kendi token'ı ile).</li><li>İş yoksa ci-svc cevabı <b>25 saniyeye kadar bekletir</b>. Buna <i>long poll</i> denir: runner sürekli sormak zorunda kalmaz.</li><li>ci-svc, runner'ın etiketlerine uyan en eski <i>pending</i> işi <code>FOR UPDATE SKIP LOCKED</code> ile seçer. İki runner aynı işi asla alamaz.</li><li>İş <i>running</i> olur ve <b>60 saniyelik kira</b> başlar. Cevapta image, script, değişkenler ve maskelenecek sırlar vardır.</li></ol><div class="facts"><div class="fact"><b>protokol</b><span>gRPC :9091 + token</span></div><div class="fact"><b>kira</b><span>60 sn</span></div></div></div></article><article class="step" id="adim-9"><div class="step-head"><span class="num">9</span><h3>Runner konteyneri kurar, script'i çalıştırır</h3><span class="st st-main">main&#x27;de</span></div><div class="fig"><svg viewBox="0 0 860 236" role="img" aria-label="Adım 9: Runner konteyneri kurar, script&#x27;i çalıştırır"><rect class="zone" x="6" y="22" width="112" height="208" rx="10"/><text class="zl" x="14" y="223">BİLGİSAYAR</text><rect class="zone" x="130" y="22" width="482" height="208" rx="10"/><text class="zl" x="138" y="223">SUNUCU 1 · git2 sunucusu (Docker Compose)</text><rect class="zone" x="624" y="22" width="230" height="208" rx="10"/><text class="zl" x="632" y="223">SUNUCU 2 · build host</text><g class="bx k-other off"><rect x="14" y="108" width="96" height="38" rx="7"/><text class="t" x="62.0" y="124" text-anchor="middle">Geliştirici</text><text class="s" x="62.0" y="138" text-anchor="middle">git · tarayıcı</text></g><g class="bx k-other off"><rect x="142" y="54" width="112" height="38" rx="7"/><text class="t" x="198.0" y="70" text-anchor="middle">gateway</text><text class="s" x="198.0" y="84" text-anchor="middle">HTTPS :443</text></g><g class="bx k-other off"><rect x="142" y="124" width="112" height="38" rx="7"/><text class="t" x="198.0" y="140" text-anchor="middle">git2 çekirdek</text><text class="s" x="198.0" y="154" text-anchor="middle">dash/admin-api</text></g><g class="bx k-other off"><rect x="290" y="54" width="112" height="38" rx="7"/><text class="t" x="346.0" y="70" text-anchor="middle">git-svc</text><text class="s" x="346.0" y="84" text-anchor="middle">:9090 · :9080</text></g><g class="bx k-ci off"><rect x="290" y="124" width="112" height="38" rx="7"/><text class="t" x="346.0" y="140" text-anchor="middle">ci-svc</text><text class="s" x="346.0" y="154" text-anchor="middle">:9090 · :9091</text></g><g class="bx k-db off"><rect x="500" y="124" width="100" height="38" rx="7"/><text class="t" x="550.0" y="140" text-anchor="middle">PostgreSQL</text><text class="s" x="550.0" y="154" text-anchor="middle">kalıcı kayıt</text></g><g class="bx k-rd off"><rect x="500" y="186" width="100" height="38" rx="7"/><text class="t" x="550.0" y="202" text-anchor="middle">Redis</text><text class="s" x="550.0" y="216" text-anchor="middle">uyandırma zili</text></g><g class="bx k-run on"><rect x="640" y="54" width="196" height="38" rx="7"/><text class="t" x="738.0" y="70" text-anchor="middle">git2-runner</text><text class="s" x="738.0" y="84" text-anchor="middle">iş ister, koşturur</text></g><g class="bx k-run on"><rect x="640" y="124" width="196" height="38" rx="7"/><text class="t" x="738.0" y="140" text-anchor="middle">Docker + iş konteyneri</text><text class="s" x="738.0" y="154" text-anchor="middle">git2-job-&lt;id&gt;</text></g><path class="ar p-docker" d="M738.0,94.0 L738.0,121.0" marker-end="url(#m-docker)"/><text class="al p-docker" x="746" y="112" text-anchor="start">Docker API</text></svg></div><div class="step-body"><ol class="what"><li>Image yoksa çekilir. Sonra işe özel bir volume, bir ağ ve bir konteyner kurulur; üçünün adı da <code>git2-job-&lt;job_id&gt;</code> olur. Ayrıntılar <a href="#konteyner">bölüm 6</a>'da.</li><li>Script <code>/bin/sh -c</code> ile ve <code>set -e</code> ile çalışır: her satır logda yeşil <code>$ komut</code> olarak görünür ve ilk hatada durur.</li><li>Konteyner sınırlıdır: 2048 MB bellek, 2 CPU, 1024 süreç. Ayrıcalığı yoktur ve Docker soketini göremez.</li></ol><div class="facts"><div class="fact"><b>API</b><span>Docker Engine (moby)</span></div><div class="fact"><b>çalışma klasörü</b><span>/workspace</span></div></div></div></article><article class="step" id="adim-10"><div class="step-head"><span class="num">10</span><h3>Loglar ve nabız (<i>heartbeat</i>)</h3><span class="st st-main">main&#x27;de</span></div><div class="fig"><svg viewBox="0 0 860 236" role="img" aria-label="Adım 10: Loglar ve nabız (heartbeat)"><rect class="zone" x="6" y="22" width="112" height="208" rx="10"/><text class="zl" x="14" y="223">BİLGİSAYAR</text><rect class="zone" x="130" y="22" width="482" height="208" rx="10"/><text class="zl" x="138" y="223">SUNUCU 1 · git2 sunucusu (Docker Compose)</text><rect class="zone" x="624" y="22" width="230" height="208" rx="10"/><text class="zl" x="632" y="223">SUNUCU 2 · build host</text><g class="bx k-other off"><rect x="14" y="108" width="96" height="38" rx="7"/><text class="t" x="62.0" y="124" text-anchor="middle">Geliştirici</text><text class="s" x="62.0" y="138" text-anchor="middle">git · tarayıcı</text></g><g class="bx k-other off"><rect x="142" y="54" width="112" height="38" rx="7"/><text class="t" x="198.0" y="70" text-anchor="middle">gateway</text><text class="s" x="198.0" y="84" text-anchor="middle">HTTPS :443</text></g><g class="bx k-other off"><rect x="142" y="124" width="112" height="38" rx="7"/><text class="t" x="198.0" y="140" text-anchor="middle">git2 çekirdek</text><text class="s" x="198.0" y="154" text-anchor="middle">dash/admin-api</text></g><g class="bx k-other off"><rect x="290" y="54" width="112" height="38" rx="7"/><text class="t" x="346.0" y="70" text-anchor="middle">git-svc</text><text class="s" x="346.0" y="84" text-anchor="middle">:9090 · :9080</text></g><g class="bx k-ci on"><rect x="290" y="124" width="112" height="38" rx="7"/><text class="t" x="346.0" y="140" text-anchor="middle">ci-svc</text><text class="s" x="346.0" y="154" text-anchor="middle">:9090 · :9091</text></g><g class="bx k-db on"><rect x="500" y="124" width="100" height="38" rx="7"/><text class="t" x="550.0" y="140" text-anchor="middle">PostgreSQL</text><text class="s" x="550.0" y="154" text-anchor="middle">kalıcı kayıt</text></g><g class="bx k-rd on"><rect x="500" y="186" width="100" height="38" rx="7"/><text class="t" x="550.0" y="202" text-anchor="middle">Redis</text><text class="s" x="550.0" y="216" text-anchor="middle">uyandırma zili</text></g><g class="bx k-run on"><rect x="640" y="54" width="196" height="38" rx="7"/><text class="t" x="738.0" y="70" text-anchor="middle">git2-runner</text><text class="s" x="738.0" y="84" text-anchor="middle">iş ister, koşturur</text></g><g class="bx k-run off"><rect x="640" y="124" width="196" height="38" rx="7"/><text class="t" x="738.0" y="140" text-anchor="middle">Docker + iş konteyneri</text><text class="s" x="738.0" y="154" text-anchor="middle">git2-job-&lt;id&gt;</text></g><path class="ar p-grpc" d="M638.1,64.4 L382.9,123.3" marker-end="url(#m-grpc)"/><text class="al p-grpc" x="628" y="50" text-anchor="end">AppendLog · UpdateJob</text><path class="ar p-sql" d="M404.0,143.0 L497.0,143.0" marker-end="url(#m-sql)"/><text class="al p-sql" x="451" y="137" text-anchor="middle">log parçaları</text><path class="ar p-redis" d="M403.9,160.6 L497.1,188.9" marker-end="url(#m-redis)"/><text class="al p-redis" x="492" y="212" text-anchor="end">ci:log:&lt;job&gt;</text></svg></div><div class="step-body"><ol class="what"><li>Runner çıktıyı yarım saniyelik parçalar halinde gönderir (<code>AppendLog</code>). <b>Sırlar gönderilmeden önce <code>***</code> ile maskelenir.</b></li><li>Her parça bayt konumuyla gelir; tekrar göndermek güvenlidir. Log en çok 4 MiB olabilir.</li><li>Her 15 saniyede bir <code>UpdateJob(RUNNING)</code> gönderilir: kira 60 sn uzar, cevapta &laquo;iptal edildi mi?&raquo; bilgisi gelir. Artık konteynerin CPU ve bellek ölçümü de bu nabızla gider.</li><li>Her log parçasından sonra <code>ci:log:&lt;job_id&gt;</code> zili çalar ve Dash'te canlı log izleyen herkes yeni satırları hemen görür.</li></ol><div class="facts"><div class="fact"><b>yazılan</b><span>job_log_chunks</span></div><div class="fact"><b>nabız</b><span>15 sn</span></div></div></div></article><article class="step" id="adim-11"><div class="step-head"><span class="num">11</span><h3>İş biter, sıradaki aşama başlar</h3><span class="st st-main">main&#x27;de</span></div><div class="fig"><svg viewBox="0 0 860 236" role="img" aria-label="Adım 11: İş biter, sıradaki aşama başlar"><rect class="zone" x="6" y="22" width="112" height="208" rx="10"/><text class="zl" x="14" y="223">BİLGİSAYAR</text><rect class="zone" x="130" y="22" width="482" height="208" rx="10"/><text class="zl" x="138" y="223">SUNUCU 1 · git2 sunucusu (Docker Compose)</text><rect class="zone" x="624" y="22" width="230" height="208" rx="10"/><text class="zl" x="632" y="223">SUNUCU 2 · build host</text><g class="bx k-other off"><rect x="14" y="108" width="96" height="38" rx="7"/><text class="t" x="62.0" y="124" text-anchor="middle">Geliştirici</text><text class="s" x="62.0" y="138" text-anchor="middle">git · tarayıcı</text></g><g class="bx k-other off"><rect x="142" y="54" width="112" height="38" rx="7"/><text class="t" x="198.0" y="70" text-anchor="middle">gateway</text><text class="s" x="198.0" y="84" text-anchor="middle">HTTPS :443</text></g><g class="bx k-other off"><rect x="142" y="124" width="112" height="38" rx="7"/><text class="t" x="198.0" y="140" text-anchor="middle">git2 çekirdek</text><text class="s" x="198.0" y="154" text-anchor="middle">dash/admin-api</text></g><g class="bx k-other off"><rect x="290" y="54" width="112" height="38" rx="7"/><text class="t" x="346.0" y="70" text-anchor="middle">git-svc</text><text class="s" x="346.0" y="84" text-anchor="middle">:9090 · :9080</text></g><g class="bx k-ci on"><rect x="290" y="124" width="112" height="38" rx="7"/><text class="t" x="346.0" y="140" text-anchor="middle">ci-svc</text><text class="s" x="346.0" y="154" text-anchor="middle">:9090 · :9091</text></g><g class="bx k-db on"><rect x="500" y="124" width="100" height="38" rx="7"/><text class="t" x="550.0" y="140" text-anchor="middle">PostgreSQL</text><text class="s" x="550.0" y="154" text-anchor="middle">kalıcı kayıt</text></g><g class="bx k-rd on"><rect x="500" y="186" width="100" height="38" rx="7"/><text class="t" x="550.0" y="202" text-anchor="middle">Redis</text><text class="s" x="550.0" y="216" text-anchor="middle">uyandırma zili</text></g><g class="bx k-run on"><rect x="640" y="54" width="196" height="38" rx="7"/><text class="t" x="738.0" y="70" text-anchor="middle">git2-runner</text><text class="s" x="738.0" y="84" text-anchor="middle">iş ister, koşturur</text></g><g class="bx k-run off"><rect x="640" y="124" width="196" height="38" rx="7"/><text class="t" x="738.0" y="140" text-anchor="middle">Docker + iş konteyneri</text><text class="s" x="738.0" y="154" text-anchor="middle">git2-job-&lt;id&gt;</text></g><path class="ar p-grpc" d="M638.1,64.4 L382.9,123.3" marker-end="url(#m-grpc)"/><text class="al p-grpc" x="628" y="50" text-anchor="end">UpdateJob(SUCCESS / FAILED)</text><path class="ar p-sql" d="M404.0,143.0 L497.0,143.0" marker-end="url(#m-sql)"/><text class="al p-sql" x="451" y="137" text-anchor="middle">sonuç + sıradaki</text><path class="ar p-redis" d="M403.9,160.6 L497.1,188.9" marker-end="url(#m-redis)"/><text class="al p-redis" x="492" y="212" text-anchor="end">ci:jobs:wake</text></svg></div><div class="step-body"><ol class="what"><li>Runner önce logun kalanını, sonra sonucu gönderir: <b>SUCCESS</b> (çıkış kodu 0) ya da <b>FAILED</b> (script hatası, süre aşımı, image çekilemedi…).</li><li>Bir aşamanın bütün işleri başarılıysa sıradaki aşamanın işleri <i>pending</i> olur ve adım 7'ye dönülür. Biri başarısızsa sonraki aşamalar <i>skipped</i> olur.</li><li>Son iş de bitince pipeline SUCCESS ya da FAILED olur; outbox'a <code>JobFinished</code> ve <code>PipelineFinished</code> yazılır.</li><li>Runner Docker'da kurduğu her şeyi siler ve yeniden &laquo;iş var mı?&raquo; diye sormaya başlar.</li></ol><div class="facts"><div class="fact"><b>yazılan</b><span>jobs · pipelines · outbox</span></div></div></div></article><article class="step" id="adim-12"><div class="step-head"><span class="num">12</span><h3>Dash sonucu gösterir</h3><span class="st st-main">main&#x27;de</span></div><div class="fig"><svg viewBox="0 0 860 236" role="img" aria-label="Adım 12: Dash sonucu gösterir"><rect class="zone" x="6" y="22" width="112" height="208" rx="10"/><text class="zl" x="14" y="223">BİLGİSAYAR</text><rect class="zone" x="130" y="22" width="482" height="208" rx="10"/><text class="zl" x="138" y="223">SUNUCU 1 · git2 sunucusu (Docker Compose)</text><rect class="zone" x="624" y="22" width="230" height="208" rx="10"/><text class="zl" x="632" y="223">SUNUCU 2 · build host</text><g class="bx k-other on"><rect x="14" y="108" width="96" height="38" rx="7"/><text class="t" x="62.0" y="124" text-anchor="middle">Geliştirici</text><text class="s" x="62.0" y="138" text-anchor="middle">git · tarayıcı</text></g><g class="bx k-other on"><rect x="142" y="54" width="112" height="38" rx="7"/><text class="t" x="198.0" y="70" text-anchor="middle">gateway</text><text class="s" x="198.0" y="84" text-anchor="middle">HTTPS :443</text></g><g class="bx k-other on"><rect x="142" y="124" width="112" height="38" rx="7"/><text class="t" x="198.0" y="140" text-anchor="middle">git2 çekirdek</text><text class="s" x="198.0" y="154" text-anchor="middle">dash/admin-api</text></g><g class="bx k-other off"><rect x="290" y="54" width="112" height="38" rx="7"/><text class="t" x="346.0" y="70" text-anchor="middle">git-svc</text><text class="s" x="346.0" y="84" text-anchor="middle">:9090 · :9080</text></g><g class="bx k-ci on"><rect x="290" y="124" width="112" height="38" rx="7"/><text class="t" x="346.0" y="140" text-anchor="middle">ci-svc</text><text class="s" x="346.0" y="154" text-anchor="middle">:9090 · :9091</text></g><g class="bx k-db off"><rect x="500" y="124" width="100" height="38" rx="7"/><text class="t" x="550.0" y="140" text-anchor="middle">PostgreSQL</text><text class="s" x="550.0" y="154" text-anchor="middle">kalıcı kayıt</text></g><g class="bx k-rd off"><rect x="500" y="186" width="100" height="38" rx="7"/><text class="t" x="550.0" y="202" text-anchor="middle">Redis</text><text class="s" x="550.0" y="216" text-anchor="middle">uyandırma zili</text></g><g class="bx k-run off"><rect x="640" y="54" width="196" height="38" rx="7"/><text class="t" x="738.0" y="70" text-anchor="middle">git2-runner</text><text class="s" x="738.0" y="84" text-anchor="middle">iş ister, koşturur</text></g><g class="bx k-run off"><rect x="640" y="124" width="196" height="38" rx="7"/><text class="t" x="738.0" y="140" text-anchor="middle">Docker + iş konteyneri</text><text class="s" x="738.0" y="154" text-anchor="middle">git2-job-&lt;id&gt;</text></g><path class="ar p-http" d="M111.7,107.3 L147.4,93.1" marker-end="url(#m-http)"/><text class="al p-http" x="62" y="100" text-anchor="middle">tarayıcı</text><path class="ar p-http" d="M198.0,94.0 L198.0,121.0" marker-end="url(#m-http)"/><text class="al p-http" x="186" y="112" text-anchor="end">sayfa</text><path class="ar p-grpc" d="M256.0,143.0 L287.0,143.0" marker-end="url(#m-grpc)"/><text class="al p-grpc" x="272" y="182" text-anchor="middle">GetPipeline · StreamJobLog</text></svg></div><div class="step-body"><ol class="what"><li>Tarayıcı yalnızca gateway üzerinden dash-api ile konuşur. <b>Tarayıcı ci-svc'yi hiç görmez.</b></li><li>dash-api önce kullanıcının yetkisine bakar, sonra ci-svc'yi çağırır: <code>GetPipeline</code> ve <code>ListPipelines</code> durumları, <code>StreamJobLog</code> ise canlı logu verir.</li><li>Merge isteğindeki ✓ / ✗ işareti için olayların dash-api'ye gitmesi gerekiyor. Bu henüz yapılmadı (#48).</li></ol><div class="facts"><div class="fact"><b>protokol</b><span>HTTPS → gRPC :9090</span></div></div></div></article></div></section><section id="postgres"><div class="sec-head"><span class="n">4</span><h2>Postgres'in içinde ne var?</h2><p class="lead"><code>ci_svc</code> şeması: ci-svc'nin bütün hafızası. Başka servislerin şemalarına dokunmaz.</p></div><figure class="fig"><div class="card"><svg viewBox="0 0 936 330" role="img" class="dg" aria-label="ci_svc şemasındaki tablolar ve aralarındaki bağlar."><rect class="box-db" x="20" y="20" width="210" height="132" rx="6"/><path class="tbl-h" d="M20,44 V26 a6,6 0 0 1 6,-6 H224 a6,6 0 0 1 6,6 V44 Z"/><text class="tbl-ht" x="30" y="36">runners</text><text class="mono" x="30" y="57">id</text><text class="mono" x="30" y="74">name · labels</text><text class="mono" x="30" y="91">token_sha256</text><text class="mono" x="30" y="108">paused</text><text class="mono" x="30" y="125">last_seen_at</text><text class="mono" x="30" y="142">health</text><text class="new" x="222" y="142" text-anchor="end">yeni · 008</text><rect class="box-db" x="262" y="20" width="210" height="115" rx="6"/><path class="tbl-h" d="M262,44 V26 a6,6 0 0 1 6,-6 H466 a6,6 0 0 1 6,6 V44 Z"/><text class="tbl-ht" x="272" y="36">pipelines</text><text class="mono" x="272" y="57">id</text><text class="mono" x="272" y="74">repository_id · ref</text><text class="mono" x="272" y="91">commit_sha</text><text class="mono" x="272" y="108">status</text><text class="mono" x="272" y="125">idempotency_key</text><rect class="box-db" x="504" y="20" width="220" height="166" rx="6"/><path class="tbl-h" d="M504,44 V26 a6,6 0 0 1 6,-6 H718 a6,6 0 0 1 6,6 V44 Z"/><text class="tbl-ht" x="514" y="36">jobs</text><text class="mono" x="514" y="57">id</text><text class="mono" x="514" y="74">pipeline_id</text><text class="mono" x="514" y="91">stage · name</text><text class="mono" x="514" y="108">status</text><text class="mono" x="514" y="125">runner_id</text><text class="mono" x="514" y="142">lease_expires_at</text><text class="mono" x="514" y="159">attempt</text><text class="mono" x="514" y="176">container_stats</text><text class="new" x="716" y="176" text-anchor="end">yeni · 008</text><rect class="box-db" x="756" y="20" width="160" height="81" rx="6"/><path class="tbl-h" d="M756,44 V26 a6,6 0 0 1 6,-6 H910 a6,6 0 0 1 6,6 V44 Z"/><text class="tbl-ht" x="766" y="36">job_log_chunks</text><text class="mono" x="766" y="57">job_id</text><text class="mono" x="766" y="74">offset</text><text class="mono" x="766" y="91">data</text><rect class="box-db" x="756" y="136" width="160" height="81" rx="6"/><path class="tbl-h" d="M756,160 V142 a6,6 0 0 1 6,-6 H910 a6,6 0 0 1 6,6 V160 Z"/><text class="tbl-ht" x="766" y="152">secrets</text><text class="mono" x="766" y="173">scope · name</text><text class="mono" x="766" y="190">ciphertext</text><text class="mono" x="766" y="207">nonce · key_id</text><rect class="box-db" x="262" y="196" width="210" height="81" rx="6"/><path class="tbl-h" d="M262,220 V202 a6,6 0 0 1 6,-6 H466 a6,6 0 0 1 6,6 V220 Z"/><text class="tbl-ht" x="272" y="212">outbox</text><text class="mono" x="272" y="233">event_type</text><text class="mono" x="272" y="250">payload (JSON)</text><text class="mono" x="272" y="267">published_at</text><rect class="box-db" x="504" y="222" width="220" height="98" rx="6"/><path class="tbl-h" d="M504,246 V228 a6,6 0 0 1 6,-6 H718 a6,6 0 0 1 6,6 V246 Z"/><text class="tbl-ht" x="514" y="238">inbox</text><text class="mono" x="514" y="259">event_id</text><text class="mono" x="514" y="276">payload (JSON)</text><text class="mono" x="514" y="293">processed_at</text><text class="mono" x="514" y="310">next_attempt_at</text><rect class="box-db" x="20" y="196" width="210" height="81" rx="6"/><path class="tbl-h" d="M20,220 V202 a6,6 0 0 1 6,-6 H224 a6,6 0 0 1 6,6 V220 Z"/><text class="tbl-ht" x="30" y="212">registration_tokens</text><text class="mono" x="30" y="233">token_sha256</text><text class="mono" x="30" y="250">expires_at</text><text class="mono" x="30" y="267">used_at</text><path class="line" d="M504,70 H488 V53 H472" marker-end="url(#m-sql)"/><path class="line" d="M756,53 H740 V53 H724" marker-end="url(#m-sql)"/><path class="line" d="M504,121 H492 V184 H246 V53 H230" marker-end="url(#m-sql)"/><text class="small" x="248" y="180">her iş, onu koşturan runner'a bağlı</text><text class="small" x="756" y="246">kuyruk = jobs tablosundaki</text><text class="small" x="756" y="262">pending satırlar</text></svg></div><figcaption>Oklar &laquo;bu satır şuna ait&raquo; demek. &laquo;yeni · 008&raquo; olan sütunlar izleme için eklendi (PR #52).</figcaption></figure><figure class="fig narrow"><div class="card"><svg viewBox="0 0 760 210" role="img" class="dg" aria-label="İki runner aynı anda iş ister; A ilk işi kilitler, B kilitli satırı atlayıp ikinci işi alır."><rect class="box-run" x="20" y="30" width="120" height="40" rx="7"/><text class="h" x="80" y="55" text-anchor="middle">Runner A</text><rect class="box-run" x="20" y="130" width="120" height="40" rx="7"/><text class="h" x="80" y="155" text-anchor="middle">Runner B</text><rect class="box-db" x="330" y="20" width="410" height="170" rx="8"/><text class="h" x="345" y="42">ci_svc.jobs · pending işler (en eski üstte)</text><rect class="box-ci" x="350" y="56" width="370" height="32" rx="5"/><text class="mono" x="364" y="77">build #41</text><text class="h" x="706" y="77" text-anchor="end">kilitledi → A alır</text><rect class="box-ci" x="350" y="98" width="370" height="32" rx="5"/><text class="mono" x="364" y="119">build #42</text><text class="h" x="706" y="119" text-anchor="end">kilitli olanı atladı → B alır</text><rect class="box" x="350" y="140" width="370" height="32" rx="5"/><text class="mono" x="364" y="161">lint #42</text><text class="small" x="706" y="161" text-anchor="end">sırada bekliyor</text><path class="line" d="M140,50 L346,72" marker-end="url(#m-grpc)"/><text class="small" x="230" y="52">aynı anda sorar</text><path class="line" d="M140,150 C240,150 260,90 346,114" marker-end="url(#m-grpc)"/><text class="small" x="196" y="182">aynı anda sorar</text></svg></div><figcaption><code>FOR UPDATE SKIP LOCKED</code>: bir satırı alan onu kilitler, aynı anda soran başkası kilitliyi atlar ve sıradakini alır. Bu yüzden iki runner aynı işi asla koşturmaz.</figcaption></figure><div class="grid g3"><div class="card"><h3>Neden kuyruk Postgres'te?</h3><ol class="steps-plain" style="margin-top:8px"><li>İş, pipeline ile aynı işlemde yazılır: ikisi asla birbirinden kopmaz.</li><li>Postgres yedeklenir. Geri yüklemede kuyruk da geri gelir.</li><li>Redis çökse bile hiçbir iş kaybolmaz (NFR-21).</li></ol></div><div class="card"><h3>Hepsi ya da hiçbiri</h3><ol class="steps-plain" style="margin-top:8px"><li>Pipeline oluşurken birkaç tablo birlikte yazılır.</li><li>Biri bile başarısız olursa hiçbiri yazılmaz (transaction).</li><li>Olay (outbox satırı) da aynı işlemde yazılır: olay varsa değişiklik de vardır.</li></ol></div><div class="card"><h3>Sırlar nasıl saklanır?</h3><ol class="steps-plain" style="margin-top:8px"><li>Değer AES-256-GCM ile şifrelenir. Tabloda yalnızca şifreli hali durur.</li><li>Anahtar (<code>GIT2_CI_SECRETS_KEY</code>) veritabanında değil, sunucunun ayarlarında durur.</li><li>Bir kez kaydedilen sır API'den bir daha okunamaz; yalnızca o iş koşarken runner'a gider.</li></ol></div></div></section><section id="redis"><div class="sec-head"><span class="n">5</span><h2>Redis ne işe yarar?</h2><p class="lead">Bir kapı zili gibi: &laquo;bir şey oldu, bak&raquo; der. Neyin olduğunu söylemez, saklamaz.</p></div><figure class="fig"><div class="card"><svg viewBox="0 0 860 230" role="img" class="dg" aria-label="ci-svc kopya 1 zili Redis'e yayınlar, Redis kopya 2'ye iletir, kopya 2'de bekleyen runner isteği uyanır."><rect class="box-ci" x="20" y="40" width="170" height="56" rx="8"/><text class="h" x="105" y="64" text-anchor="middle">ci-svc · kopya 1</text><text class="small" x="105" y="82" text-anchor="middle">yeni iş kuyruğa girdi</text><rect class="box-rd" x="340" y="40" width="180" height="56" rx="8"/><text class="h" x="430" y="64" text-anchor="middle">Redis</text><text class="mono" x="430" y="82" text-anchor="middle">ci:jobs:wake</text><rect class="box-ci" x="670" y="40" width="170" height="56" rx="8"/><text class="h" x="755" y="64" text-anchor="middle">ci-svc · kopya 2</text><text class="small" x="755" y="82" text-anchor="middle">runner bekletiliyor</text><rect class="box-run" x="670" y="150" width="170" height="44" rx="8"/><text class="h" x="755" y="177" text-anchor="middle">Runner X</text><path class="ar p-redis" d="M190,68 H334" marker-end="url(#m-redis)"/><text class="al p-redis" x="262" y="60" text-anchor="middle">1 · yayınla</text><path class="ar p-redis" d="M520,68 H664" marker-end="url(#m-redis)"/><text class="al p-redis" x="592" y="60" text-anchor="middle">2 · dağıt</text><path class="ar p-grpc" d="M755,96 V144" marker-end="url(#m-grpc)"/><text class="al p-grpc" x="746" y="125" text-anchor="end">3 · &quot;iş var&quot; cevabı</text><text class="small" x="20" y="130">Zil veri taşımaz. Uyanan taraf neyin değiştiğini Postgres'ten okur.</text><text class="small" x="20" y="150">Runner Redis'e hiç bağlanmaz; zili duyan, onun adına bekleyen ci-svc'dir.</text></svg></div></figure><div class="tbl"><table><thead><tr><th>Anahtar / kanal</th><th>Ne zaman çalar</th><th>Kim duyar</th><th>Redis yoksa</th></tr></thead><tbody><tr><td><code>ci:jobs:wake</code></td><td>Yeni iş kuyruğa girdi</td><td>Bekleyen RequestJob'lar</td><td>3 sn'de bir Postgres'e bakılır</td></tr><tr><td><code>ci:inbox:wake</code></td><td>Yeni push olayı geldi</td><td>Inbox işçisi</td><td>5 sn'de bir bakılır</td></tr><tr><td><code>ci:log:&lt;job_id&gt;</code></td><td>İşin logu büyüdü ya da iş bitti</td><td>Canlı log izleyenler (StreamJobLog)</td><td>1 sn'de bir bakılır</td></tr><tr><td><code>ci:rl:register:&lt;ip&gt;</code></td><td>Runner kayıt denemesi</td><td>Hız sınırı: dakikada 10</td><td>Sınır uygulanmaz</td></tr></tbody></table></div><figure class="fig narrow"><div class="card"><svg viewBox="0 0 860 150" role="img" class="dg" aria-label="Redis varken iş milisaniyeler içinde verilir; Redis yokken en çok 3 saniye sonra."><line class="tick" x1="170.0" y1="20" x2="170.0" y2="122"/><text class="small" x="170.0" y="140" text-anchor="middle">0 sn</text><line class="tick" x1="386.66666666666663" y1="20" x2="386.66666666666663" y2="122"/><text class="small" x="386.66666666666663" y="140" text-anchor="middle">1 sn</text><line class="tick" x1="603.3333333333333" y1="20" x2="603.3333333333333" y2="122"/><text class="small" x="603.3333333333333" y="140" text-anchor="middle">2 sn</text><line class="tick" x1="820.0" y1="20" x2="820.0" y2="122"/><text class="small" x="820.0" y="140" text-anchor="middle">3 sn</text><text class="h" x="20" y="52">Redis varken</text><rect class="bar-ci" x="170" y="38" width="6" height="22" rx="2"/><text class="small" x="184" y="54">iş hemen verilir (ms)</text><text class="h" x="20" y="100">Redis yokken</text><rect class="bar-mute" x="170" y="86" width="650" height="22" rx="3" opacity=".35"/><rect class="bar-ci" x="814" y="86" width="6" height="22" rx="2"/><text class="small" x="804" y="102" text-anchor="end">en geç 3 sn sonra Postgres yoklamasıyla</text></svg></div><figcaption>Redis yalnızca hız kazandırır; doğruluk hiçbir zaman ona bağlı değildir.</figcaption></figure></section><section id="konteyner"><div class="sec-head"><span class="n">6</span><h2>Konteyner nasıl oluşuyor?</h2><p class="lead">Sunucu 2'nin içine yakından bakış: runner, Docker Engine ve bir işin kutusu.</p></div><figure class="fig"><div class="card"><svg viewBox="0 0 860 330" role="img" class="dg" aria-label="Sunucu 2: git2-runner süreci Docker Engine API ile image, volume, ağ ve konteyneri sırayla kurar; konteyner /workspace olarak volume'u görür."><rect class="frame" x="8" y="10" width="844" height="312" rx="12"/><text class="small" x="20" y="312">SUNUCU 2 · build host</text><rect class="box-run" x="30" y="120" width="160" height="70" rx="9"/><text class="h" x="110" y="148" text-anchor="middle">git2-runner süreci</text><text class="small" x="110" y="168" text-anchor="middle">kendi config.json'u</text><rect class="frame" x="260" y="30" width="572" height="270" rx="10" style="stroke:var(--dp);stroke-dasharray:none"/><text class="h" x="276" y="54">Docker Engine (daemon)</text><path class="ar p-docker" d="M190,155 H254" marker-end="url(#m-docker)"/><text class="al p-docker" x="222" y="146" text-anchor="middle">API</text><text class="small" x="30" y="214">DOCKER_HOST ya da yerel soket</text><rect class="box" x="290" y="76" width="150" height="54" rx="7"/><text class="h" x="365" y="99" text-anchor="middle">image</text><text class="mono" x="365" y="118" text-anchor="middle">alpine:3.20</text><circle class="n-badge" cx="290" cy="76" r="10"/><text class="n-badge-t" x="290" y="80" text-anchor="middle">1</text><rect class="box" x="290" y="170" width="150" height="54" rx="7"/><text class="h" x="365" y="193" text-anchor="middle">volume</text><text class="mono" x="365" y="212" text-anchor="middle">git2-job-&lt;id&gt;</text><circle class="n-badge" cx="290" cy="170" r="10"/><text class="n-badge-t" x="290" y="174" text-anchor="middle">2</text><rect class="box" x="470" y="246" width="340" height="40" rx="7"/><text class="h" x="490" y="271">ağ (bridge)</text><text class="mono" x="800" y="271" text-anchor="end">git2-job-&lt;id&gt;</text><circle class="n-badge" cx="470" cy="246" r="10"/><text class="n-badge-t" x="470" y="250" text-anchor="middle">3</text><rect class="box-run" x="500" y="76" width="310" height="148" rx="9"/><text class="h" x="516" y="99">konteyner git2-job-&lt;id&gt;</text><text class="mono" x="516" y="122">/bin/sh -c "set -e; …script…"</text><text class="mono" x="516" y="142">ortam: değişkenler + sırlar</text><text class="mono" x="516" y="162">/workspace  ← volume</text><text class="mono" x="516" y="182">2 GB · 2 CPU · 1024 süreç</text><text class="mono" x="516" y="202">etiket: job-id, runner-id</text><circle class="n-badge" cx="500" cy="76" r="10"/><text class="n-badge-t" x="500" y="80" text-anchor="middle">4</text><path class="line" d="M440,197 H494" marker-end="url(#m-docker)"/><path class="line" d="M440,103 H494" marker-end="url(#m-docker)"/><path class="line" d="M655,224 V240" marker-end="url(#m-docker)"/></svg></div><figcaption>Çalışma ortamı (runtime) Docker Engine. Runner <code>docker</code> komutunu değil, Docker'ın Go API'sini kullanır (ADR 0008).</figcaption></figure><div class="card"><h3>Bir işin konteyneri, adım adım</h3><ol class="steps-plain" style="margin-top:10px"><li><b>Image'a bak.</b> <code>ImageInspect</code>. Yoksa <code>ImagePull</code> ile çekilir. Çekilemezse iş <b>IMAGE_PULL_FAILURE</b> olur.</li><li><b>Volume kur.</b> <code>VolumeCreate git2-job-&lt;id&gt;</code>. İşin dosyaları burada durur; konteynerde <code>/workspace</code> olarak görünür.</li><li><b>Ağ kur.</b> <code>NetworkCreate</code> (bridge). Her iş kendi ağında; başka işlerin konteynerlerini göremez.</li><li><b>Konteyneri oluştur.</b> <code>ContainerCreate</code>: image, <code>/bin/sh -c</code> + script, ortam değişkenleri (sırlar dahil, diske yazılmaz), sınırlar, iki etiket.</li><li><b>Çıktıya bağlan.</b> <code>ContainerAttach</code>: stdout ve stderr runner'ın log gönderen parçasına akar, sırlar orada maskelenir.</li><li><b>Bitişi beklemeye başla.</b> <code>ContainerWait</code> başlatmadan <i>önce</i> çağrılır; çok hızlı biten bir iş gözden kaçmasın.</li><li><b>Başlat.</b> <code>ContainerStart</code>. Script çalışır, her satır logda görünür.</li><li><b>Sonucu al.</b> Çıkış kodu 0 ise SUCCESS, değilse FAILED. Süre dolarsa konteyner öldürülür ve iş TIMEOUT olur.</li><li><b>Temizle.</b> Ne olursa olsun önce konteyner (zorla), sonra ağ, sonra volume silinir. Geride bir şey kalmaz.</li></ol></div><div class="limits"><div class="limit"><span class="v">2048 MB</span><span class="k">bellek sınırı; aşan iş öldürülür</span></div><div class="limit"><span class="v">2 CPU</span><span class="k">işlemci sınırı</span></div><div class="limit"><span class="v">1024</span><span class="k">süreç ve iş parçacığı sınırı</span></div><div class="limit"><span class="v">1 sa</span><span class="k">varsayılan süre sınırı (en çok 24 sa, yml'de <code>timeout</code>)</span></div><div class="limit"><span class="v">ayrıcalıksız</span><span class="k"><code>no-new-privileges</code>, privileged değil</span></div><div class="limit"><span class="v">soketsiz</span><span class="k">Docker soketini ve host klasörlerini göremez</span></div></div><p class="note">İlk üç sınır runner'ın <code>config.json</code> dosyasındaki <code>docker</code> bölümünden değiştirilebilir.</p><div class="card"><h3>Runner çökerse konteynerler ne olur? <span class="st st-pr">PR #50 · onaylı, merge bekliyor</span></h3><ol class="steps-plain" style="margin-top:10px"><li>Runner ya da makine iş ortasında ölür. Konteyner, ağ ve volume Docker'da kalır, konteyner çalışmaya devam edebilir.</li><li>ci-svc'de işin kirası 60 sn içinde dolar; temizlikçi (her 15 sn) işi <b>RUNNER_LOST</b> olarak kapatır. Kullanıcı <code>RetryJob</code> ile yeniden koşturabilir.</li><li>Runner yeniden başlarken önce Docker'da <code>io.git2.runner-id=&lt;kendi id&gt;</code> etiketli her şeyi bulur.</li><li>Bunları siler ve adlarını loglar. <b>Başka runner'ların işlerine dokunmaz</b>, çünkü onların etiketi farklıdır.</li></ol></div></section><section id="runner"><div class="sec-head"><span class="n">7</span><h2>Runner'ın hayatı</h2><p class="lead">Kayıttan iş bitişine kadar bir runner'ın zaman çizelgesi.</p></div><figure class="fig"><div class="card"><svg viewBox="0 0 860 210" role="img" class="dg" aria-label="Runner'ın zaman çizelgesi: bir kez kayıt, açılışta temizlik, iş isteme döngüsü, iş sırasında 15 saniyede bir nabız ve sürekli log, sonunda sonuç."><line class="tick" x1="20" y1="120" x2="840" y2="120"/><rect class="bar-mute" x="20" y="108" width="86" height="24" rx="4"/><text class="h" x="65.0" y="98" text-anchor="middle">kayıt</text><text class="small" x="65.0" y="152" text-anchor="middle">bir kez</text><rect class="bar-run" x="110" y="108" width="56" height="24" rx="4"/><text class="h" x="140.0" y="98" text-anchor="middle">temizlik</text><text class="small" x="140.0" y="152" text-anchor="middle">açılışta</text><rect class="bar-ci" x="170" y="108" width="166" height="24" rx="4"/><text class="h" x="255.0" y="98" text-anchor="middle">RequestJob</text><text class="small" x="255.0" y="152" text-anchor="middle">≤ 25 sn bekler</text><rect class="bar-run" x="340" y="108" width="376" height="24" rx="4"/><text class="h" x="530.0" y="98" text-anchor="middle">iş koşuyor</text><rect class="bar-ci" x="720" y="108" width="76" height="24" rx="4"/><text class="h" x="760.0" y="98" text-anchor="middle">sonuç</text><text class="small" x="760.0" y="152" text-anchor="middle">UpdateJob</text><rect class="bar-ci" x="800" y="108" width="36" height="24" rx="4"/><line x1="400" y1="104" x2="400" y2="136" style="stroke:var(--cp);stroke-width:3"/><line x1="480" y1="104" x2="480" y2="136" style="stroke:var(--cp);stroke-width:3"/><line x1="560" y1="104" x2="560" y2="136" style="stroke:var(--cp);stroke-width:3"/><line x1="640" y1="104" x2="640" y2="136" style="stroke:var(--cp);stroke-width:3"/><text class="small" x="530" y="152" text-anchor="middle">mavi çizgiler: 15 sn'de bir nabız (+ CPU/bellek ölçümü)</text><text class="small" x="530" y="170" text-anchor="middle">arada sürekli: AppendLog (yarım saniyelik parçalar)</text><path class="line" d="M830,106 C830,60 340,60 335,104" marker-end="url(#m-grpc)"/><text class="small" x="540" y="58" text-anchor="middle">bitince yeniden &laquo;iş var mı?&raquo;</text></svg></div></figure><div class="grid g2"><div class="card"><h3>Kayıt (bir kez)</h3><ol class="steps-plain" style="margin-top:8px"><li>Yönetici konsolda &laquo;Yeni runner&raquo;a basar. ci-svc tek kullanımlık bir <code>g2rt_…</code> token üretir; 1 saat geçerlidir.</li><li>Build host'ta <code>git2-runner register -url https://…:9091 -token g2rt_…</code> çalıştırılır.</li><li>ci-svc kayıt token'ını yakar ve kalıcı bir <code>g2r_…</code> runner token'ı verir.</li><li>Runner bunu <code>config.json</code>'a yalnızca kendisinin okuyabileceği izinle (0600) yazar.</li></ol></div><div class="card"><h3>Çalışma (<code>git2-runner run</code>)</h3><ol class="steps-plain" style="margin-top:8px"><li>Docker'a ulaşabildiğini kontrol eder, önceki çökmeden kalanları siler.</li><li>&laquo;İş var mı?&raquo; diye sorar, sağlık raporunu da ekler (Docker sürümü, CPU, bellek).</li><li>İş gelince koşturur; nabız ve logu ayrı ayrı gönderir.</li><li>Sonucu gönderir, geri döner. <b>Aynı anda tek iş</b> koşturur.</li><li>SIGTERM gelirse elindeki işi bitirir, sonra kapanır.</li></ol></div></div></section><section id="rpc"><div class="sec-head"><span class="n">8</span><h2>RPC nedir, hangi RPC'ler var?</h2><p class="lead">Servisler birbirine &laquo;fonksiyon çağrısı&raquo; gönderir. Hangi fonksiyonlar var, kim çağırıyor?</p></div><figure class="fig"><div class="card"><svg viewBox="0 0 860 250" role="img" class="dg" aria-label="dash-api ci-svc'nin GetPipeline fonksiyonunu çağırır: istek mesajı gider, cevap mesajı döner; ikisi de pipeline.proto sözleşmesinden üretilmiş koddur."><rect class="box" x="20" y="60" width="200" height="110" rx="9"/><text class="h" x="120" y="88" text-anchor="middle">Arayan: dash-api</text><text class="mono" x="120" y="114" text-anchor="middle">p := ci.GetPipeline(id)</text><text class="small" x="120" y="138" text-anchor="middle">kendi fonksiyonu gibi çağırır</text><rect class="box-ci" x="640" y="60" width="200" height="110" rx="9"/><text class="h" x="740" y="88" text-anchor="middle">Sunucu: ci-svc :9090</text><text class="small" x="740" y="114" text-anchor="middle">Postgres'ten okur,</text><text class="small" x="740" y="132" text-anchor="middle">cevabı doldurur</text><path class="ar p-grpc" d="M220,90 H634" marker-end="url(#m-grpc)"/><rect class="box" x="300" y="66" width="260" height="22" rx="4"/><text class="mono" x="430" y="81" text-anchor="middle">GetPipelineRequest { id: "01a1…" }</text><path class="ar p-grpc" d="M640,146 H226" marker-end="url(#m-grpc)"/><rect class="box" x="270" y="152" width="320" height="22" rx="4"/><text class="mono" x="430" y="167" text-anchor="middle">GetPipelineResponse { status: RUNNING, … }</text><rect class="box-db" x="330" y="196" width="200" height="40" rx="6"/><text class="mono" x="430" y="221" text-anchor="middle">pipeline.proto (sözleşme)</text><path class="line" d="M330,216 C200,216 120,200 120,172"/><path class="line" d="M530,216 C660,216 740,200 740,172"/><text class="small" x="170" y="236" text-anchor="middle">üretilmiş istemci kodu</text><text class="small" x="690" y="236" text-anchor="middle">üretilmiş sunucu kodu</text><text class="small" x="430" y="40" text-anchor="middle">HTTP/2 üzerinde ikili (binary) mesajlar · hata olursa kod: NOT_FOUND, INVALID_ARGUMENT, UNAVAILABLE…</text></svg></div></figure><div class="card"><h3>Bir RPC adım adım</h3><ol class="steps-plain" style="margin-top:8px"><li>Sözleşme yazılır: <code>.proto</code> dosyasında fonksiyon adı, isteğin ve cevabın alanları (<code>app/proto/ci/v1/</code>).</li><li><code>buf generate</code> iki tarafın Go kodunu üretir. Elle mesaj ayrıştırmak yok.</li><li>Arayan, üretilmiş istemciyle fonksiyonu çağırır; istek HTTP/2 üzerinden ikili olarak gider.</li><li>Sunucu işi yapar ve cevabı ya da standart bir hata kodunu döndürür.</li><li>Sözleşmeye yeni alan eklemek eski programları bozmaz; bilmedikleri alanı görmezden gelirler.</li></ol></div><div class="grid g2"><div class="card api"><div class="api-h"><h3>PipelineService</h3><span class="st st-main">main&#x27;de</span></div><p class="who">dash-api → ci-svc :9090</p><ul><li><code>TriggerPipeline</code><span>elle pipeline başlat (&laquo;Run&raquo; düğmesi)</span></li><li><code>GetPipeline</code><span>bir pipeline'ı ve işlerini göster</span></li><li><code>ListPipelines</code><span>deponun pipeline listesi</span></li><li><code>CancelPipeline</code><span>durdur</span></li><li><code>RetryJob</code><span>bir işi yeniden koştur (yeni deneme)</span></li><li><code>GetJob</code><span>tek işin ayrıntısı</span></li><li><code>StreamJobLog</code><span>canlı log akışı</span></li><li><code>ValidateConfig</code><span><code>.git2-ci.yml</code> doğru mu?</span></li></ul></div><div class="card api"><div class="api-h"><h3>RunnerAdminService</h3><span class="st st-main">main&#x27;de</span></div><p class="who">admin-api → ci-svc :9090</p><ul><li><code>CreateRegistrationToken</code><span>yeni runner için tek kullanımlık token</span></li><li><code>ListRunners</code><span>runner listesi, durumu, sağlığı</span></li><li><code>GetRunner</code><span>tek runner</span></li><li><code>UpdateRunner</code><span>duraklat / not ekle</span></li><li><code>DeleteRunner</code><span>sil (token hemen geçersiz)</span></li><li><code>ListRunningJobs</code><span>şu an ne nerede koşuyor (#52)</span></li><li><code>GetOverview</code><span>panodaki sayılar (#52)</span></li></ul></div><div class="card api"><div class="api-h"><h3>SecretService</h3><span class="st st-main">main&#x27;de</span></div><p class="who">admin-api, dash-api → ci-svc :9090</p><ul><li><code>SetSecret</code><span>sır yaz (şifrelenir)</span></li><li><code>ListSecrets</code><span>adları listele (değer asla dönmez)</span></li><li><code>DeleteSecret</code><span>sil</span></li></ul></div><div class="card api"><div class="api-h"><h3>RunnerService</h3><span class="st st-main">main&#x27;de</span></div><p class="who">runner → ci-svc :9091 (token ile)</p><ul><li><code>RegisterRunner</code><span>kayıt token'ını runner token'ıyla değiş</span></li><li><code>RequestJob</code><span>iş var mı? (25 sn bekletir) + sağlık raporu</span></li><li><code>UpdateJob</code><span>nabız (15 sn) ya da sonuç + konteyner ölçümü</span></li><li><code>AppendLog</code><span>log parçası ekle</span></li></ul></div><div class="card api"><div class="api-h"><h3>EventSink</h3><span class="st st-pr">PR #49</span></div><p class="who">git-svc relay → ci-svc :9090</p><ul><li><code>Deliver</code><span>bir olayı teslim et (inbox'a yazılır)</span></li></ul></div><div class="card api"><div class="api-h"><h3>CommitService (git-svc&#x27;nin)</h3><span class="st st-main">main&#x27;de</span></div><p class="who">ci-svc → git-svc :9090</p><ul><li><code>GetBlob</code><span>commit'teki <code>.git2-ci.yml</code>'yi oku</span></li><li><code>GetArchive</code><span>commit'in dosyalarını tar olarak al (#19 ile)</span></li></ul></div></div><div class="card"><h3>Olaylar (ci-svc'nin outbox'ı)</h3><p class="note" style="margin-top:6px"><code>PipelineCreated</code>, <code>JobFinished</code>, <code>PipelineFinished</code>: ci-svc bunları <code>ci_svc.outbox</code>'a yazar. dash-api'ye taşıyacak relay henüz yok (#48); o zamana kadar kutuda bekler, kaybolmaz.</p></div></section><section id="bozulursa"><div class="sec-head"><span class="n">9</span><h2>Bir şey bozulursa</h2><p class="lead">Her senaryo adım adım. Ortak kural: kalıcı olan her şey Postgres'te.</p></div><div class="grid g3"><div class="card scen"><h3>Runner ya da build host ölürse</h3><ol><li>Nabızlar kesilir, kira uzamaz.</li><li>En geç 60 sn sonra kira dolar; temizlikçi her 15 sn'de bir bakar.</li><li>İş <b>RUNNER_LOST</b> olur, pipeline devam eder ya da biter.</li><li>Kullanıcı <code>RetryJob</code> ile işi yeniden koşturur. Runner geri gelince eski konteynerleri siler.</li></ol><p class="end">Kayıp: o işin o denemesi. Pipeline kilitlenmez.</p></div><div class="card scen"><h3>git-svc kapalıysa</h3><ol><li>Olay ci-svc'nin inbox'ında bekler.</li><li>İşçi 5 sn, 10 sn, 20 sn… en çok 5 dk arayla tekrar dener.</li><li>git-svc açılınca pipeline oluşur.</li></ol><p class="end">Kayıp: yok. Yalnızca gecikme.</p></div><div class="card scen"><h3>Redis kapalıysa</h3><ol><li>Zil çalmaz.</li><li>Bekleyen istekler 3 sn'de bir, log izleyenler 1 sn'de bir, inbox işçisi 5 sn'de bir Postgres'e bakar.</li><li>ci-svc &laquo;hazır&raquo; olmaya devam eder.</li></ol><p class="end">Kayıp: yok. Birkaç saniye gecikme.</p></div><div class="card scen"><h3>ci-svc yeniden başlarsa</h3><ol><li>Bütün durum Postgres'te, bellekte değil.</li><li>Bekleyen long poll'lar kesilir; runner'lar kısa bir beklemeden sonra tekrar sorar.</li><li>Koşan işlerin nabzı kira dolmadan dönerse iş kesintisiz sürer.</li></ol><p class="end">Kayıp: yok.</p></div><div class="card scen"><h3>Aynı olay iki kez gelirse</h3><ol><li>Relay en az bir kez teslim eder, bazen iki kez.</li><li><code>event_id</code> inbox'ta benzersiz: ikinci kayıt yazılmaz.</li><li>Yine de işlenirse pipeline anahtarı <code>&lt;event_id&gt;:&lt;ref&gt;</code> ikinci pipeline'ı engeller.</li></ol><p class="end">Çift pipeline: olmaz.</p></div><div class="card scen"><h3>Sunucu yedekten geri yüklenirse</h3><ol><li>Postgres yedeği, şifreleme anahtarı ve depolar geri gelir.</li><li>Yedekte &laquo;koşuyor&raquo; görünen işlerin kirası dolar ve RUNNER_LOST olur.</li><li>Gönderilmemiş olaylar tekrar gönderilir; çiftler yukarıdaki gibi elenir.</li></ol><p class="end">Kayıp: yedekten sonra olanlar.</p></div></div></section><section id="modlar"><div class="sec-head"><span class="n">10</span><h2>Çalışma modları</h2></div><div class="tbl"><table><thead><tr><th>Program</th><th>Mod</th><th>Ne değişir</th></tr></thead><tbody><tr><td>ci-svc</td><td>Normal</td><td><code>GIT_SVC_GRPC_ADDR</code> verilir; <code>.git2-ci.yml</code> git-svc'den okunur</td></tr><tr><td>ci-svc</td><td>Geliştirme (<code>GIT2_CISVC_DEV=true</code>)</td><td>grpcurl için reflection açılır; <code>.git2-ci.yml</code> yerel bir klasörden okunabilir (<code>GIT2_CISVC_DEV_CONFIG_DIR</code>)</td></tr><tr><td>ci-svc</td><td>Redis'siz</td><td>Çalışır; tek kopya için uygun. Zil yerine yoklama</td></tr><tr><td>ci-svc</td><td>Supabase havuzu (port 6543)</td><td>Ortak geliştirme veritabanı. Hazırlanmış SQL ifadesi kullanılmaz, kod iki modda da test edilir</td></tr><tr><td>ci-svc</td><td>Runner portunda TLS</td><td><code>GIT2_CISVC_RUNNER_TLS_CERT/_KEY</code> ya da önünde TLS sonlandıran bir proxy</td></tr><tr><td>ci-svc</td><td>Birden çok kopya</td><td>Durum Postgres'te, zil Redis'te: kopyalar birbirini bilmeden çalışır</td></tr><tr><td>runner</td><td>systemd servisi</td><td><code>git2-runner</code> kullanıcısı + docker grubu; <code>deploy/systemd/git2-runner.service</code></td></tr><tr><td>runner</td><td>Konteynerde</td><td><code>ghcr.io/git2-project/git2-runner</code> imajı, host'un Docker soketiyle</td></tr><tr><td>runner</td><td>Docker-in-Docker</td><td><code>DOCKER_HOST</code> ayrı bir Docker daemon'unu gösterir; geliştirme ortamı böyle</td></tr><tr><td>runner</td><td>Etiketler</td><td>Runner'ın etiketleri işin <code>tags</code> listesinin hepsini içermeli; etiketsiz iş her runner'a gidebilir</td></tr></tbody></table></div></section><section id="yolda"><div class="sec-head"><span class="n">11</span><h2>Nerede kaldık, sırada ne var?</h2></div><div class="grid g3"><div class="card"><span class="st st-pr">onaylı · merge bekliyor</span><h3 style="margin-top:8px">Push → pipeline</h3><p class="note" style="margin-top:6px">PR #49 (adım 2–5) ve çöken runner temizliği PR #50. Senin merge tıklamanı bekliyor.</p></div><div class="card"><span class="st st-rev">incelemede</span><h3 style="margin-top:8px">İzleme</h3><p class="note" style="margin-top:6px">PR #52: runner sağlığı, şu an koşan işler, pano sayıları. Migration 008: git2 #53 (Ceyda). Konsol ekranları: git2 #54 (Beste).</p></div><div class="card"><span class="st st-plan">sıradaki</span><h3 style="margin-top:8px">İş kaynağı (#19)</h3><p class="note" style="margin-top:6px">Bugün işler boş bir <code>/workspace</code> ile başlıyor. <code>GetArchive</code> ile commit'in dosyaları konteynere kopyalanacak (codeplane v0.4.0 hazır).</p></div><div class="card"><span class="st st-plan">planlanan</span><h3 style="margin-top:8px">Kendi relay'imiz (#48)</h3><p class="note" style="margin-top:6px">ci-svc'nin olayları dash-api'ye gidecek: merge isteğindeki ✓ / ✗ için (M3, 11 Ara).</p></div><div class="card"><span class="st st-plan">planlanan</span><h3 style="margin-top:8px">Artifact'lar (#21)</h3><p class="note" style="margin-top:6px">İşin ürettiği dosyalar ve tamamlanan loglar bucket'ta (<code>ci/</code> öneki).</p></div><div class="card"><span class="st st-plan">planlanan</span><h3 style="margin-top:8px">Hata ve geri yükleme testleri (#22)</h3><p class="note" style="margin-top:6px">M4 (18 Ara): iş ortasında Redis'i, ci-svc'yi ve runner'ı öldürüp sistemin toparlandığını göstermek.</p></div></div></section></div></body></html>
