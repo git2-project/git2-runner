@@ -16,6 +16,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 	"slices"
 	"strings"
 	"time"
@@ -35,9 +36,12 @@ var requiredTables = []string{
 	Schema + ".inbox",
 }
 
-// requiredJobColumns are the ci_svc.jobs columns that later migrations
-// added (006: attempts for RetryJob).
-var requiredJobColumns = []string{"attempt", "retry_of", "idempotency_key", "triggered_by"}
+// requiredColumns are the columns that later migrations added, per table:
+// 006 (attempts for RetryJob) and 008 (runner health, container use).
+var requiredColumns = map[string][]string{
+	"jobs":    {"attempt", "retry_of", "idempotency_key", "triggered_by", "container_stats", "container_stats_at"},
+	"runners": {"health", "health_at"},
+}
 
 // pingTimeout bounds the first connection attempt at startup.
 const pingTimeout = 5 * time.Second
@@ -114,20 +118,23 @@ func CheckSchema(ctx context.Context, pool *pgxpool.Pool) error {
 		}
 	}
 	if len(missing) == 0 {
-		rows, err := pool.Query(ctx, `
-			SELECT column_name::text FROM information_schema.columns
-			WHERE table_schema = $1 AND table_name = 'jobs' AND column_name = ANY($2::text[])`,
-			Schema, requiredJobColumns)
-		if err != nil {
-			return fmt.Errorf("check columns: %w", err)
-		}
-		have, err := pgx.CollectRows(rows, pgx.RowTo[string])
-		if err != nil {
-			return fmt.Errorf("check columns: %w", err)
-		}
-		for _, c := range requiredJobColumns {
-			if !slices.Contains(have, c) {
-				missing = append(missing, Schema+".jobs."+c)
+		for _, table := range slices.Sorted(maps.Keys(requiredColumns)) {
+			cols := requiredColumns[table]
+			rows, err := pool.Query(ctx, `
+				SELECT column_name::text FROM information_schema.columns
+				WHERE table_schema = $1 AND table_name = $2 AND column_name = ANY($3::text[])`,
+				Schema, table, cols)
+			if err != nil {
+				return fmt.Errorf("check columns: %w", err)
+			}
+			have, err := pgx.CollectRows(rows, pgx.RowTo[string])
+			if err != nil {
+				return fmt.Errorf("check columns: %w", err)
+			}
+			for _, c := range cols {
+				if !slices.Contains(have, c) {
+					missing = append(missing, Schema+"."+table+"."+c)
+				}
 			}
 		}
 	}

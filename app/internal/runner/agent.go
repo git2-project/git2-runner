@@ -66,8 +66,12 @@ func (a *Agent) Run(ctx context.Context) error {
 	tm := a.timing()
 	backoff := tm.backoff
 	for ctx.Err() == nil {
+		req := &civ1.RequestJobRequest{}
+		if m, ok := a.Executor.(Monitor); ok {
+			req.Health = m.Health(ctx)
+		}
 		reqCtx, cancel := context.WithTimeout(ctx, tm.request)
-		resp, err := a.Client.RequestJob(reqCtx, &civ1.RequestJobRequest{})
+		resp, err := a.Client.RequestJob(reqCtx, req)
 		cancel()
 		switch {
 		case err == nil:
@@ -185,8 +189,13 @@ func (a *Agent) heartbeat(ctx context.Context, jobID string, cancel context.Canc
 			return
 		case <-t.C:
 		}
+		req := &civ1.UpdateJobRequest{JobId: jobID, Status: civ1.JobStatus_JOB_STATUS_RUNNING}
+		if m, ok := a.Executor.(Monitor); ok {
+			req.Container = m.ContainerStats(ctx, jobID)
+			req.Health = m.Health(ctx)
+		}
 		hbCtx, done := context.WithTimeout(ctx, tm.call)
-		resp, err := a.Client.UpdateJob(hbCtx, &civ1.UpdateJobRequest{JobId: jobID, Status: civ1.JobStatus_JOB_STATUS_RUNNING})
+		resp, err := a.Client.UpdateJob(hbCtx, req)
 		done()
 		switch status.Code(err) {
 		case codes.OK:
