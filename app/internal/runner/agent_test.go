@@ -426,3 +426,78 @@ func TestRunRunsJobArrivingWithShutdown(t *testing.T) {
 		t.Errorf("reported %v, want SUCCESS", final.req.GetStatus())
 	}
 }
+
+// monitoredExec is an executor that also implements Monitor.
+type monitoredExec struct {
+	execFunc
+	health *civ1.RunnerHealth
+	sample *civ1.ContainerStats
+}
+
+func (m monitoredExec) Health(context.Context) *civ1.RunnerHealth { return m.health }
+
+func (m monitoredExec) ContainerStats(_ context.Context, jobID string) *civ1.ContainerStats {
+	if jobID != testJobID {
+		return nil
+	}
+	return m.sample
+}
+
+// TestMonitorReports: an executor that is a Monitor has its host check
+// sent with every RequestJob and its container sample with every
+// heartbeat. One that is not sends neither, as before.
+func TestMonitorReports(t *testing.T) {
+	t.Parallel()
+	f := newFakeCI(t)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	f.requestJob = func(_ context.Context, n int) (*civ1.RequestJobResponse, error) {
+		switch n {
+		case 1:
+			return &civ1.RequestJobResponse{Job: testJob(time.Minute)}, nil
+		default:
+			cancel()
+			return &civ1.RequestJobResponse{}, nil
+		}
+	}
+	exec := monitoredExec{
+		execFunc: func(context.Context, Spec, io.Writer) Result {
+			time.Sleep(30 * time.Millisecond) // several heartbeats
+			return Result{}
+		},
+		health: &civ1.RunnerHealth{DockerReachable: true, DockerVersion: "29.0.1", JobContainers: 1},
+		sample: &civ1.ContainerStats{CpuPercent: 12.5, MemoryBytes: 1 << 20},
+	}
+	a := newTestAgent(f, exec)
+	within(t, "Run", func() { _ = a.Run(ctx) })
+
+	f.mu.Lock()
+	healths, samples, beatHealth := f.healths, f.samples, f.beatHealth
+	f.mu.Unlock()
+	if len(healths) < 2 {
+		t.Fatalf("%d RequestJob calls, want 2", len(healths))
+	}
+	for i, h := range healths {
+		if h.GetDockerVersion() != "29.0.1" || !h.GetDockerReachable() {
+			t.Errorf("RequestJob %d sent health %v", i+1, h)
+		}
+	}
+	if len(samples) == 0 {
+		t.Fatal("no heartbeat")
+	}
+	for i, s := range samples {
+		if s.GetCpuPercent() != 12.5 || beatHealth[i].GetDockerVersion() != "29.0.1" {
+			t.Errorf("heartbeat %d sent sample %v and health %v", i+1, s, beatHealth[i])
+		}
+	}
+
+	// A plain executor sends nothing extra.
+	plain := newFakeCI(t)
+	plain.requestJob = func(context.Context, int) (*civ1.RequestJobResponse, error) {
+		return nil, status.Error(codes.Unauthenticated, "stop")
+	}
+	_ = newTestAgent(plain, execFunc(func(context.Context, Spec, io.Writer) Result { return Result{} })).Run(context.Background())
+	if h := plain.healths; len(h) != 1 || h[0] != nil {
+		t.Errorf("a plain executor sent health %v", h)
+	}
+}

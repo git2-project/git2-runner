@@ -149,6 +149,16 @@ type Executor interface {
 	Run(ctx context.Context, spec Spec, out io.Writer) Result
 }
 
+// Monitor is what an Executor may also do for monitoring: check its host,
+// and sample a running job's container. The agent sends the check with
+// every RequestJob and every RUNNING heartbeat, and the sample with every
+// heartbeat. Both must
+// return within a few seconds, and nil when they have nothing to say.
+type Monitor interface {
+	Health(ctx context.Context) *civ1.RunnerHealth
+	ContainerStats(ctx context.Context, jobID string) *civ1.ContainerStats
+}
+
 // BuildScript turns .git2-ci.yml script lines into one /bin/sh script
 // that echoes each command before running it and stops at the first
 // command that fails, like `sh -e`.

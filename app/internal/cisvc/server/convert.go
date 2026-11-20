@@ -96,6 +96,7 @@ func runnerToProto(r runners.Runner, now time.Time) *civ1.Runner {
 		LastSeenAt:  ts(r.LastSeenAt),
 		CreatedAt:   timestamppb.New(r.CreatedAt),
 		UpdatedAt:   timestamppb.New(r.UpdatedAt),
+		Health:      healthFromJSON(r.Health, r.HealthAt),
 	}
 }
 

@@ -1,0 +1,65 @@
+syntax = "proto3";
+
+package ci.v1;
+
+import "google/protobuf/timestamp.proto";
+
+// RunnerHealth is what a runner last reported about its build host and its
+// Docker daemon. The runner sends it with every RunnerService.RequestJob;
+// admins read it in Runner.health.
+message RunnerHealth {
+  // Whether the Docker daemon answered the runner's last check. When false,
+  // the runner cannot run jobs, and the other fields are empty.
+  bool docker_reachable = 1;
+
+  // Version of the Docker Engine, for example "29.0.1".
+  string docker_version = 2;
+
+  // Operating system and architecture of the Docker daemon, for example
+  // "linux/amd64".
+  string docker_platform = 3;
+
+  // CPUs the Docker daemon can use.
+  int32 cpus = 4;
+
+  // Memory of the Docker daemon's host, in bytes.
+  int64 memory_bytes = 5;
+
+  // Job containers of this runner on the daemon, running or not. More than
+  // one, or one while the runner runs no job, means leftovers.
+  int32 job_containers = 6;
+
+  // When ci-svc received the report, by ci-svc's clock. Ignored when a
+  // runner sends it.
+  google.protobuf.Timestamp reported_at = 7;
+}
+
+// ContainerStats is the resource use of a running job's container, sampled
+// by its runner. The runner sends it with every RUNNING heartbeat
+// (RunnerService.UpdateJob, every 15 seconds).
+message ContainerStats {
+  // CPU use in percent of one CPU, like `docker stats`: 150 means one and
+  // a half CPUs are busy.
+  double cpu_percent = 1;
+
+  // Memory in use, in bytes, without the page cache.
+  int64 memory_bytes = 2;
+
+  // Memory limit of the container, in bytes (the runner's memory_mb).
+  int64 memory_limit_bytes = 3;
+
+  // Processes and threads running in the container.
+  int64 pids = 4;
+
+  // Process limit of the container (the runner's pids_limit). 0 if none.
+  int64 pids_limit = 5;
+
+  // When ci-svc received the sample, by ci-svc's clock. Ignored when a
+  // runner sends it.
+  google.protobuf.Timestamp reported_at = 6;
+
+  // CPUs the container may use (the runner's cpus setting), so cpu_percent
+  // can be shown against it: 150 with a limit of 2 is 75 % of the limit.
+  // 0 if there is no limit.
+  double cpu_limit = 7;
+}
