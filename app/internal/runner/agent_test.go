@@ -472,7 +472,7 @@ func TestMonitorReports(t *testing.T) {
 	within(t, "Run", func() { _ = a.Run(ctx) })
 
 	f.mu.Lock()
-	healths, samples := f.healths, f.samples
+	healths, samples, beatHealth := f.healths, f.samples, f.beatHealth
 	f.mu.Unlock()
 	if len(healths) < 2 {
 		t.Fatalf("%d RequestJob calls, want 2", len(healths))
@@ -486,8 +486,8 @@ func TestMonitorReports(t *testing.T) {
 		t.Fatal("no heartbeat")
 	}
 	for i, s := range samples {
-		if s.GetCpuPercent() != 12.5 {
-			t.Errorf("heartbeat %d sent sample %v", i+1, s)
+		if s.GetCpuPercent() != 12.5 || beatHealth[i].GetDockerVersion() != "29.0.1" {
+			t.Errorf("heartbeat %d sent sample %v and health %v", i+1, s, beatHealth[i])
 		}
 	}
 

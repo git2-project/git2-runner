@@ -24,7 +24,7 @@ On ci-svc's **internal port**. admin-api calls it and **checks that the user is 
 
 | `status` | Meaning |
 |---|---|
-| `RUNNER_STATUS_ONLINE` | Asked for work within the last 90 s |
+| `RUNNER_STATUS_ONLINE` | Asked for work, or sent a heartbeat for a running job, within the last 90 s |
 | `RUNNER_STATUS_OFFLINE` | Not heard from for 90 s, or never |
 | `RUNNER_STATUS_PAUSED` | An admin paused it: it finishes its current job, then takes no new ones |
 
@@ -51,8 +51,8 @@ Tokens start with `g2rt_` (registration) or `g2r_` (runner), so a leaked one is 
 Runners check their build host and sample their job containers, and ci-svc keeps the latest report. Nothing is pushed: the console polls. Every 15–30 s is plenty, because that is how often runners report.
 
 ```
-build host ── RequestJob + health (≤ 25 s) ──► ci-svc ──► ci_svc.runners.health
-           ── UpdateJob RUNNING + container (15 s) ──► ci_svc.jobs.container_stats
+build host ── RequestJob + health (≤ 25 s) ─────────► ci-svc ──► ci_svc.runners.health
+           ── UpdateJob RUNNING + health + container (15 s) ──► runners.health, jobs.container_stats
 console ◄── admin-api ◄── GetRunner / ListRunningJobs / GetOverview
 ```
 
@@ -64,13 +64,13 @@ console ◄── admin-api ◄── GetRunner / ListRunningJobs / GetOverview
 | `docker_version`, `docker_platform` | e.g. `29.0.1`, `linux/amd64` | text |
 | `cpus`, `memory_bytes` | the daemon's host | "4 CPU · 16 GiB" |
 | `job_containers` | this runner's job containers on the daemon | **Warning** when it is above 1, or 1 while the runner runs nothing: leftovers ([After a crash](#after-a-crash)) |
-| `reported_at` | when ci-svc got it | "checked 12 s ago"; grey out the card when it is older than 2 minutes |
+| `reported_at` | when ci-svc got it. Runners report with every request for work and every heartbeat, so it stays fresh during jobs too | "checked 12 s ago"; grey out the card when it is older than 2 minutes |
 
 **`ListRunningJobs`**: what runs where. Each `RunningJob` has the job (`job_id`, `name`, `stage`, `attempt`), its pipeline (`pipeline_id`, `repository_id`, `ref`, `commit_sha`), the runner (`runner_id`, `runner_name`), `started_at` and `container` (`ContainerStats`):
 
 | `container` field | Meaning |
 |---|---|
-| `cpu_percent` | like `docker stats`: 100 = one full CPU, so 150 on a 2-CPU limit is 75 % of it |
+| `cpu_percent` / `cpu_limit` | like `docker stats`: 100 = one full CPU. `cpu_limit` is the CPUs the container may use, so 150 with `cpu_limit` 2 is 75 % of it (0: no limit) |
 | `memory_bytes` / `memory_limit_bytes` | in use (without page cache) / the limit; a bar, red near the limit (the job is killed there) |
 | `pids` / `pids_limit` | processes and threads / the limit |
 | `reported_at` | when ci-svc got it; unset `container` until the first heartbeat, about 15 s after the start |
@@ -168,5 +168,5 @@ On ci-svc's **runner port**. Every call except `RegisterRunner` carries `authori
 |---|---|
 | `RegisterRunner` | One-time registration token + name, labels, executor, version, platform → `runner_id`, `runner_token`. `UNAUTHENTICATED` for a bad, used or expired token; `RESOURCE_EXHAUSTED` after 10 attempts a minute from one address |
 | `RequestJob` | Long poll, up to about 25 s: returns a `JobAssignment` (image, script, variables with secrets marked `masked`, timeout) or nothing. Optional `health` (`RunnerHealth`): the runner's check of its Docker host, stored for [monitoring](#monitoring-for-the-console) |
-| `UpdateJob` | `RUNNING` is the heartbeat (every 15 s; extends the 60 s lease); `SUCCESS` or `FAILED` (with `failure_reason`, and `exit_code` for `SCRIPT_FAILURE`) finishes the job. The reply's `cancel_requested` tells the runner to stop. A heartbeat may carry `container` (`ContainerStats`), a sample of the job container's CPU, memory and processes |
+| `UpdateJob` | `RUNNING` is the heartbeat (every 15 s; extends the 60 s lease); `SUCCESS` or `FAILED` (with `failure_reason`, and `exit_code` for `SCRIPT_FAILURE`) finishes the job. The reply's `cancel_requested` tells the runner to stop. A heartbeat may carry `container` (`ContainerStats`), a sample of the job container's CPU, memory and processes, and `health`, the host check; it also keeps the runner online |
 | `AppendLog` | Appends masked log bytes at a byte offset; idempotent, so retries are safe. Returns the stored size and whether the 4 MiB limit was hit |

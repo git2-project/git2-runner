@@ -74,15 +74,16 @@ type fakeCI struct {
 	// maxLog is the size at which the log is truncated; 0 means never.
 	maxLog int
 
-	mu        sync.Mutex
-	requests  int
-	healths   []*civ1.RunnerHealth   // the health sent with each RequestJob
-	samples   []*civ1.ContainerStats // the sample sent with each heartbeat
-	beats     int
-	finals    []finalCall
-	appends   []appendCall
-	log       []byte
-	truncated bool
+	mu         sync.Mutex
+	requests   int
+	healths    []*civ1.RunnerHealth   // the health sent with each RequestJob
+	samples    []*civ1.ContainerStats // the sample sent with each heartbeat
+	beatHealth []*civ1.RunnerHealth   // the health sent with each heartbeat
+	beats      int
+	finals     []finalCall
+	appends    []appendCall
+	log        []byte
+	truncated  bool
 }
 
 // finalCall is a final UpdateJob, with the log ci-svc held when it came.
@@ -131,6 +132,7 @@ func (f *fakeCI) UpdateJob(ctx context.Context, in *civ1.UpdateJobRequest, _ ...
 	if in.GetStatus() == civ1.JobStatus_JOB_STATUS_RUNNING {
 		f.beats++
 		f.samples = append(f.samples, in.GetContainer())
+		f.beatHealth = append(f.beatHealth, in.GetHealth())
 		if f.heartbeat != nil {
 			return f.heartbeat(f.beats)
 		}

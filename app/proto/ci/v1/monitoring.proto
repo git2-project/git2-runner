@@ -57,4 +57,9 @@ message ContainerStats {
   // When ci-svc received the sample, by ci-svc's clock. Ignored when a
   // runner sends it.
   google.protobuf.Timestamp reported_at = 6;
+
+  // CPUs the container may use (the runner's cpus setting), so cpu_percent
+  // can be shown against it: 150 with a limit of 2 is 75 % of the limit.
+  // 0 if there is no limit.
+  double cpu_limit = 7;
 }

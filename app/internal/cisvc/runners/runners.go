@@ -31,7 +31,8 @@ import (
 const (
 	DefaultTokenTTL = time.Hour
 	MaxTokenTTL     = 7 * 24 * time.Hour
-	// OnlineWindow is how recently a runner must have asked for work to
+	// OnlineWindow is how recently a runner must have asked for work, or
+	// sent a heartbeat, to
 	// count as online.
 	OnlineWindow = 90 * time.Second
 	// MaxLabels is the most labels a runner may have.
@@ -63,7 +64,8 @@ type Runner struct {
 	HealthAt *time.Time
 }
 
-// Online reports whether the runner asked for work within OnlineWindow.
+// Online reports whether the runner asked for work or sent a heartbeat
+// within OnlineWindow.
 func (r Runner) Online(now time.Time) bool {
 	return r.LastSeenAt != nil && now.Sub(*r.LastSeenAt) < OnlineWindow
 }

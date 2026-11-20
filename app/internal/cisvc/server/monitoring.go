@@ -51,12 +51,9 @@ func statsJSON(c *civ1.ContainerStats) string {
 	if c == nil {
 		return ""
 	}
-	cpu := c.GetCpuPercent()
-	if math.IsNaN(cpu) || math.IsInf(cpu, 0) || cpu < 0 {
-		cpu = 0
-	}
 	clean := &civ1.ContainerStats{
-		CpuPercent:       math.Round(cpu*10) / 10,
+		CpuPercent:       finite(c.GetCpuPercent(), 1),
+		CpuLimit:         finite(c.GetCpuLimit(), 2),
 		MemoryBytes:      max(c.GetMemoryBytes(), 0),
 		MemoryLimitBytes: max(c.GetMemoryLimitBytes(), 0),
 		Pids:             max(c.GetPids(), 0),
@@ -67,6 +64,16 @@ func statsJSON(c *civ1.ContainerStats) string {
 		return ""
 	}
 	return string(b)
+}
+
+// finite returns v rounded to the given decimals, or 0 when it is negative
+// or not a number.
+func finite(v float64, decimals int) float64 {
+	if math.IsNaN(v) || math.IsInf(v, 0) || v < 0 {
+		return 0
+	}
+	p := math.Pow(10, float64(decimals))
+	return math.Round(v*p) / p
 }
 
 // cut bounds a report's text field and keeps it valid UTF-8.

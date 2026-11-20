@@ -192,6 +192,7 @@ func (a *Agent) heartbeat(ctx context.Context, jobID string, cancel context.Canc
 		req := &civ1.UpdateJobRequest{JobId: jobID, Status: civ1.JobStatus_JOB_STATUS_RUNNING}
 		if m, ok := a.Executor.(Monitor); ok {
 			req.Container = m.ContainerStats(ctx, jobID)
+			req.Health = m.Health(ctx)
 		}
 		hbCtx, done := context.WithTimeout(ctx, tm.call)
 		resp, err := a.Client.UpdateJob(hbCtx, req)

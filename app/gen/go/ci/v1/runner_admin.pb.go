@@ -29,7 +29,8 @@ type RunnerStatus int32
 const (
 	// Never used.
 	RunnerStatus_RUNNER_STATUS_UNSPECIFIED RunnerStatus = 0
-	// The runner asked ci-svc for work within the last 90 seconds.
+	// The runner asked ci-svc for work, or sent a heartbeat for a running
+	// job, within the last 90 seconds.
 	RunnerStatus_RUNNER_STATUS_ONLINE RunnerStatus = 1
 	// The runner has not been heard from for 90 seconds, or never.
 	RunnerStatus_RUNNER_STATUS_OFFLINE RunnerStatus = 2

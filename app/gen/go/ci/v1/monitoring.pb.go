@@ -146,7 +146,11 @@ type ContainerStats struct {
 	PidsLimit int64 `protobuf:"varint,5,opt,name=pids_limit,json=pidsLimit,proto3" json:"pids_limit,omitempty"`
 	// When ci-svc received the sample, by ci-svc's clock. Ignored when a
 	// runner sends it.
-	ReportedAt    *timestamppb.Timestamp `protobuf:"bytes,6,opt,name=reported_at,json=reportedAt,proto3" json:"reported_at,omitempty"`
+	ReportedAt *timestamppb.Timestamp `protobuf:"bytes,6,opt,name=reported_at,json=reportedAt,proto3" json:"reported_at,omitempty"`
+	// CPUs the container may use (the runner's cpus setting), so cpu_percent
+	// can be shown against it: 150 with a limit of 2 is 75 % of the limit.
+	// 0 if there is no limit.
+	CpuLimit      float64 `protobuf:"fixed64,7,opt,name=cpu_limit,json=cpuLimit,proto3" json:"cpu_limit,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -223,6 +227,13 @@ func (x *ContainerStats) GetReportedAt() *timestamppb.Timestamp {
 	return nil
 }
 
+func (x *ContainerStats) GetCpuLimit() float64 {
+	if x != nil {
+		return x.CpuLimit
+	}
+	return 0
+}
+
 var File_ci_v1_monitoring_proto protoreflect.FileDescriptor
 
 const file_ci_v1_monitoring_proto_rawDesc = "" +
@@ -236,7 +247,7 @@ const file_ci_v1_monitoring_proto_rawDesc = "" +
 	"\fmemory_bytes\x18\x05 \x01(\x03R\vmemoryBytes\x12%\n" +
 	"\x0ejob_containers\x18\x06 \x01(\x05R\rjobContainers\x12;\n" +
 	"\vreported_at\x18\a \x01(\v2\x1a.google.protobuf.TimestampR\n" +
-	"reportedAt\"\xf2\x01\n" +
+	"reportedAt\"\x8f\x02\n" +
 	"\x0eContainerStats\x12\x1f\n" +
 	"\vcpu_percent\x18\x01 \x01(\x01R\n" +
 	"cpuPercent\x12!\n" +
@@ -246,7 +257,8 @@ const file_ci_v1_monitoring_proto_rawDesc = "" +
 	"\n" +
 	"pids_limit\x18\x05 \x01(\x03R\tpidsLimit\x12;\n" +
 	"\vreported_at\x18\x06 \x01(\v2\x1a.google.protobuf.TimestampR\n" +
-	"reportedAtB\x8c\x01\n" +
+	"reportedAt\x12\x1b\n" +
+	"\tcpu_limit\x18\a \x01(\x01R\bcpuLimitB\x8c\x01\n" +
 	"\tcom.ci.v1B\x0fMonitoringProtoP\x01Z9github.com/git2-project/git2-runner/app/gen/go/ci/v1;civ1\xa2\x02\x03CXX\xaa\x02\x05Ci.V1\xca\x02\x05Ci\\V1\xe2\x02\x11Ci\\V1\\GPBMetadata\xea\x02\x06Ci::V1b\x06proto3"
 
 var (

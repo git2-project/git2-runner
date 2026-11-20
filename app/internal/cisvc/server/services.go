@@ -226,10 +226,17 @@ func (s *runnerServer) UpdateJob(ctx context.Context, req *civ1.UpdateJobRequest
 	if err != nil {
 		return nil, toStatus(ctx, s.d.Log, err)
 	}
-	if stats := statsJSON(req.GetContainer()); stats != "" && req.GetStatus() == civ1.JobStatus_JOB_STATUS_RUNNING {
-		// Monitoring only: a lost sample must never fail the heartbeat.
-		if err := s.d.Pipelines.RecordContainerStats(ctx, runnerID, id, stats); err != nil {
-			s.d.Log.WarnContext(ctx, "store container stats", "job_id", id.String(), "err", err.Error())
+	if req.GetStatus() == civ1.JobStatus_JOB_STATUS_RUNNING {
+		// Monitoring only: nothing here may fail the heartbeat. A runner
+		// that sends heartbeats is online, even though it asks for no work
+		// while it runs a job.
+		if err := s.d.Runners.Touch(ctx, runnerID, healthJSON(req.GetHealth())); err != nil {
+			s.d.Log.WarnContext(ctx, "touch runner on heartbeat", "runner_id", runnerID.String(), "err", err.Error())
+		}
+		if stats := statsJSON(req.GetContainer()); stats != "" {
+			if err := s.d.Pipelines.RecordContainerStats(ctx, runnerID, id, stats); err != nil {
+				s.d.Log.WarnContext(ctx, "store container stats", "job_id", id.String(), "err", err.Error())
+			}
 		}
 	}
 	return &civ1.UpdateJobResponse{CancelRequested: canceled}, nil

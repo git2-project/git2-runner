@@ -71,7 +71,8 @@ service RunnerAdminService {
 enum RunnerStatus {
   // Never used.
   RUNNER_STATUS_UNSPECIFIED = 0;
-  // The runner asked ci-svc for work within the last 90 seconds.
+  // The runner asked ci-svc for work, or sent a heartbeat for a running
+  // job, within the last 90 seconds.
   RUNNER_STATUS_ONLINE = 1;
   // The runner has not been heard from for 90 seconds, or never.
   RUNNER_STATUS_OFFLINE = 2;

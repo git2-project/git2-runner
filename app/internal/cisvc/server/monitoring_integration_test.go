@@ -59,10 +59,27 @@ func TestMonitoring(t *testing.T) {
 		}
 		_, err = e.rs.UpdateJob(runnerCtx, &civ1.UpdateJobRequest{
 			JobId: job.GetJobId(), Status: civ1.JobStatus_JOB_STATUS_RUNNING,
-			Container: &civ1.ContainerStats{CpuPercent: 37.25, MemoryBytes: 64 << 20, MemoryLimitBytes: 2048 << 20, Pids: 3, PidsLimit: 1024},
+			Container: &civ1.ContainerStats{CpuPercent: 37.25, CpuLimit: 2, MemoryBytes: 64 << 20, MemoryLimitBytes: 2048 << 20, Pids: 3, PidsLimit: 1024},
 		})
 		if err != nil {
 			t.Fatalf("heartbeat with a sample: %v", err)
+		}
+
+		// A runner busy with a job asks for no work, but its heartbeats keep
+		// it online and its health fresh.
+		if _, err := e.pool.Exec(ctx, `UPDATE ci_svc.runners SET last_seen_at = now() - interval '5 minutes' WHERE id = $1`, runnerID); err != nil {
+			t.Fatal(err)
+		}
+		_, err = e.rs.UpdateJob(runnerCtx, &civ1.UpdateJobRequest{
+			JobId: job.GetJobId(), Status: civ1.JobStatus_JOB_STATUS_RUNNING,
+			Health: &civ1.RunnerHealth{DockerReachable: true, DockerVersion: "29.0.2", Cpus: 8},
+		})
+		if err != nil {
+			t.Fatalf("heartbeat with health: %v", err)
+		}
+		got, _ = e.admin.GetRunner(ctx, &civ1.GetRunnerRequest{Id: runnerID})
+		if got.GetRunner().GetStatus() != civ1.RunnerStatus_RUNNER_STATUS_ONLINE || got.GetRunner().GetHealth().GetCpus() != 8 {
+			t.Fatalf("runner during a job: %v, health %v", got.GetRunner().GetStatus(), got.GetRunner().GetHealth())
 		}
 		// Another runner's sample for this job is dropped.
 		_, err = e.rs.UpdateJob(otherCtx, &civ1.UpdateJobRequest{
@@ -79,7 +96,7 @@ func TestMonitoring(t *testing.T) {
 		c := rj.GetContainer()
 		if rj.GetJobId() != job.GetJobId() || rj.GetPipelineId() != p.GetId() || rj.GetRunnerName() != "runner-"+e.tag ||
 			rj.GetName() != "build" || rj.GetStage() != "build" || rj.GetAttempt() != 1 || rj.GetStartedAt() == nil ||
-			c.GetCpuPercent() != 37.3 || c.GetMemoryBytes() != 64<<20 || c.GetPids() != 3 || c.GetReportedAt() == nil {
+			c.GetCpuPercent() != 37.3 || c.GetCpuLimit() != 2 || c.GetMemoryBytes() != 64<<20 || c.GetPids() != 3 || c.GetReportedAt() == nil {
 			t.Fatalf("running job = %v", rj)
 		}
 		other, err := e.admin.ListRunningJobs(ctx, &civ1.ListRunningJobsRequest{RunnerId: otherID})

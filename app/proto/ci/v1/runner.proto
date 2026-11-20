@@ -115,8 +115,8 @@ message RegisterRunnerResponse {
   string runner_token = 2;
 }
 
-// RequestJobRequest is the input of RequestJob. It is empty on purpose:
-// the runner is known from its token.
+// RequestJobRequest is the input of RequestJob. The runner is known from
+// its token.
 message RequestJobRequest {
   // The runner's latest check of its build host. Optional: ci-svc keeps the
   // previous report when it is unset.
@@ -201,6 +201,11 @@ message UpdateJobRequest {
   // Resource use of the job's container. Optional, and only read with
   // RUNNING.
   ContainerStats container = 5;
+
+  // The runner's latest check of its build host, as with RequestJob, so
+  // the report stays fresh while a job runs. Optional, and only read with
+  // RUNNING.
+  RunnerHealth health = 6;
 }
 
 // UpdateJobResponse is the output of UpdateJob.

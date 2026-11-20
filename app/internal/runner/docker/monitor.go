@@ -76,7 +76,9 @@ func (e *Executor) ContainerStats(ctx context.Context, jobID string) *civ1.Conta
 	if err := json.NewDecoder(io.LimitReader(res.Body, maxStatsBytes)).Decode(&s); err != nil {
 		return nil
 	}
-	return statsOf(s)
+	out := statsOf(s)
+	out.CpuLimit = e.limits.CPUs
+	return out
 }
 
 // statsOf computes a sample the way `docker stats` does.
