@@ -1,5 +1,5 @@
-// Package notify carries ci-svc's wake-up signals: "a job was queued" and
-// "a job's log grew". It is how a long-polling runner hears about a new
+// Package notify carries ci-svc's wake-up signals: "a job was queued",
+// "a job's log grew" and "an event was delivered". It is how a long-polling runner hears about a new
 // job, and how a log follower hears about new output, within milliseconds.
 //
 // A signal carries no data. Whoever wakes up reads the database, which is
@@ -26,6 +26,8 @@ import (
 const (
 	// JobsTopic is published when jobs are queued.
 	JobsTopic = "ci:jobs:wake"
+	// InboxTopic is published when an event is stored in ci_svc.inbox.
+	InboxTopic = "ci:inbox:wake"
 	// logTopicPrefix plus a job ID is published when the job's log grows
 	// or the job finishes.
 	logTopicPrefix = "ci:log:"
@@ -133,7 +135,7 @@ func (h *Hub) Run(ctx context.Context) {
 		<-ctx.Done()
 		return
 	}
-	ps := h.rdb.PSubscribe(ctx, JobsTopic, logTopicPrefix+"*")
+	ps := h.rdb.PSubscribe(ctx, JobsTopic, InboxTopic, logTopicPrefix+"*")
 	defer func() { _ = ps.Close() }()
 	msgs := ps.Channel()
 	for {

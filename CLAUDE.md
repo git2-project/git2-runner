@@ -42,7 +42,7 @@ app/                    Go module root, all code
   proto/ci/v1/          the gRPC contract (source of truth); gen/go/ holds the generated code (make proto)
   internal/ciyaml       .git2-ci.yml parser, validation and JSON schema (shared by both programs)
   internal/cisvc/...    ci-svc only: config, db, testdb, pipeline, runners, secrets, secretbox,
-                        notify, ratelimit, outbox, source, server, apierr, page, token
+                        notify, ratelimit, outbox, inbox, source, server, apierr, page, token
   internal/runner       the agent: loop, heartbeats, log shipping, secret masking
   internal/runner/docker  the Docker executor
   Dockerfile            images for ci-svc and git2-runner (amd64, arm64; distroless, non-root)
@@ -56,7 +56,7 @@ docs/decisions/         ADRs
 env.example             template for .env
 ```
 
-A request flows `server → pipeline | runners | secrets → (db, outbox, notify)`. Domain packages know nothing about gRPC and return `apierr.Error` for anything a client may see; `server` knows no business rules. **The runner must never import `internal/cisvc/...`**: check with `go list -deps ./cmd/git2-runner | grep -E 'pgx|go-redis|cisvc'`, which must print nothing.
+A request flows `server → pipeline | runners | secrets → (db, outbox, notify)`. A push arrives as an event: `server` (EventSink) → `inbox`, whose worker calls `pipeline.Trigger` (ADR 0010). Domain packages know nothing about gRPC and return `apierr.Error` for anything a client may see; `server` knows no business rules. **The runner must never import `internal/cisvc/...`**: check with `go list -deps ./cmd/git2-runner | grep -E 'pgx|go-redis|cisvc'`, which must print nothing.
 
 ## Development
 

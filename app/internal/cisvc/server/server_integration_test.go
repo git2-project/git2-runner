@@ -24,7 +24,10 @@ import (
 	"google.golang.org/grpc/test/bufconn"
 	"google.golang.org/protobuf/types/known/durationpb"
 
+	eventsv1 "github.com/git2-project/git2-codeplane/gen/go/events/v1"
+
 	civ1 "github.com/git2-project/git2-runner/app/gen/go/ci/v1"
+	"github.com/git2-project/git2-runner/app/internal/cisvc/inbox"
 	"github.com/git2-project/git2-runner/app/internal/cisvc/notify"
 	"github.com/git2-project/git2-runner/app/internal/cisvc/pipeline"
 	"github.com/git2-project/git2-runner/app/internal/cisvc/runners"
@@ -39,6 +42,7 @@ type fakeSource struct {
 	mu    sync.Mutex
 	files map[uuid.UUID][]byte
 	errs  map[uuid.UUID]error
+	tags  map[string]string // annotated tag object → its commit
 }
 
 func (f *fakeSource) setErr(repo uuid.UUID, err error) {
@@ -56,16 +60,31 @@ func (f *fakeSource) set(repo uuid.UUID, content string) {
 	f.files[repo] = []byte(content)
 }
 
-func (f *fakeSource) ReadCIFile(_ context.Context, repo uuid.UUID, _ string) ([]byte, error) {
+// setTag makes tagObject an annotated tag object that peels to commit, as
+// git-svc reports it in GetBlobResponse.commit_sha.
+func (f *fakeSource) setTag(tagObject, commit string) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.tags == nil {
+		f.tags = map[string]string{}
+	}
+	f.tags[tagObject] = commit
+}
+
+func (f *fakeSource) ReadCIFile(_ context.Context, repo uuid.UUID, sha string) (source.File, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	if err, ok := f.errs[repo]; ok {
-		return nil, err
+		return source.File{}, err
+	}
+	commit := sha
+	if c, ok := f.tags[sha]; ok {
+		commit = c
 	}
 	if b, ok := f.files[repo]; ok {
-		return b, nil
+		return source.File{Content: b, CommitSHA: commit}, nil
 	}
-	return nil, source.ErrNoCIFile
+	return source.File{}, source.ErrNoCIFile
 }
 
 // env is ci-svc wired as main does, on in-memory listeners.
@@ -73,12 +92,14 @@ type env struct {
 	pool      *pgxpool.Pool
 	src       *fakeSource
 	pipelines *pipeline.Service
+	inbox     *inbox.Service
 	internal  *grpc.ClientConn
 	runnerCC  *grpc.ClientConn
 	ps        civ1.PipelineServiceClient
 	admin     civ1.RunnerAdminServiceClient
 	sec       civ1.SecretServiceClient
 	rs        civ1.RunnerServiceClient
+	events    eventsv1.EventSinkClient
 	// tag is unique per test: every job and runner of the test carries
 	// it, so tests sharing the database never take each other's jobs.
 	tag string
@@ -110,15 +131,17 @@ func newEnv(t *testing.T, mode testdb.Mode) *env {
 	secretSvc := secrets.NewService(pool, box)
 	hub := notify.New(nil, log)
 	pipelines := pipeline.NewService(pool, src, secretSvc, hub, log, testOptions)
-	deps := Deps{Pipelines: pipelines, Runners: runners.NewService(pool), Secrets: secretSvc, Log: log}
+	inboxSvc := inbox.NewService(pool, pipelines, hub, log, testInboxOptions)
+	deps := Deps{Pipelines: pipelines, Runners: runners.NewService(pool), Secrets: secretSvc, Inbox: inboxSvc, Log: log}
 
-	e := &env{pool: pool, src: src, pipelines: pipelines, tag: "t-" + randHex(6)}
+	e := &env{pool: pool, src: src, pipelines: pipelines, inbox: inboxSvc, tag: "t-" + randHex(6)}
 	e.internal = serve(t, NewInternal(deps, false))
 	e.runnerCC = serve(t, NewRunner(deps, nil))
 	e.ps = civ1.NewPipelineServiceClient(e.internal)
 	e.admin = civ1.NewRunnerAdminServiceClient(e.internal)
 	e.sec = civ1.NewSecretServiceClient(e.internal)
 	e.rs = civ1.NewRunnerServiceClient(e.runnerCC)
+	e.events = eventsv1.NewEventSinkClient(e.internal)
 	return e
 }
 

@@ -5,7 +5,7 @@ The other repos are still young, so we build against these assumptions until the
 | ID | Topic | Owner | Needed by | Status |
 |---|---|---|---|---|
 | [A-01](#a-01--ci-svc-lives-in-git2-runner) | ci-svc lives in git2-runner | Osman, Bilge and Beste informed | W1 | **confirmed** 2026-10-26 ([ADR 0001](../decisions/0001-ci-svc-lives-in-git2-runner.md)) |
-| [A-02](#a-02--how-a-push-reaches-us) | How a push reaches us | Apo | W4 | **agreed** 2026-11-08 ([ADR 0010](../decisions/0010-events-delivered-by-eventsink-push.md)) |
+| [A-02](#a-02--how-a-push-reaches-us) | How a push reaches us | Apo | W4 | **confirmed** 2026-11-18: built (#20) and tested end to end against git2-codeplane `v0.3.0` ([ADR 0010](../decisions/0010-events-delivered-by-eventsink-push.md)) |
 | [A-03](#a-03--reading-git2-ciyml-at-a-commit) | Reading `.git2-ci.yml` at a commit | Apo | W4 | **confirmed** 2026-11-09: `CommitService.GetBlob`, git2-codeplane `v0.2.0` |
 | [A-04](#a-04--how-a-job-gets-the-source-code) | How a job gets the source code | Apo | W4 | **confirmed** 2026-11-18: `CommitService.GetArchive`, git2-codeplane `v0.4.0` (codeplane ADR 0016) |
 | [A-05](#a-05--the-ci-secrets-key-is-in-every-backup) | The CI secrets key is in every backup | Ceyda | W5 | open |
@@ -16,7 +16,7 @@ The other repos are still young, so we build against these assumptions until the
 | [A-10](#a-10--who-checks-permissions) | Who checks permissions | everyone | W2 | open |
 | [A-11](#a-11--the-web-apps-reach-us-through-their-apis) | The web apps reach us through their APIs | Bilge, Beste | W5 | open |
 | [A-12](#a-12--ids-not-names) | IDs, not names | Apo | W1 | **confirmed** 2026-10-30: codeplane ADR 0002 |
-| [A-13](#a-13--one-outbox-format) | One outbox format | Apo, everyone | W4 | format **confirmed** 2026-10-29 (codeplane ADR 0007); delivery **agreed** 2026-11-08 ([ADR 0010](../decisions/0010-events-delivered-by-eventsink-push.md)) |
+| [A-13](#a-13--one-outbox-format) | One outbox format | Apo, everyone | W4 | format **confirmed** 2026-10-29 (codeplane ADR 0007); delivery **confirmed** 2026-11-18: codeplane's relay (`v0.3.0`) delivers to our `EventSink` ([ADR 0010](../decisions/0010-events-delivered-by-eventsink-push.md)) |
 | [A-14](#a-14--one-go-version-one-dsn-variable) | One Go version, one DSN variable | everyone | W2 | **confirmed** 2026-10-29: codeplane ADR 0010 moved to Go 1.26 and `POSTGRES_DSN` |
 | [A-15](#a-15--the-shared-redis) | The shared Redis | Ceyda, everyone | W2 | open |
 
@@ -37,6 +37,8 @@ Weeks: W1 starts 26 Oct 2026, W2 2 Nov, W3 9 Nov, W4 16 Nov, W5 23 Nov, W6 30 No
 - codeplane's relay pushes `RepositoryPushed` to ci-svc's `events.v1.EventSink`.
 - ci-svc records it and decides by itself which refs start pipelines, with the key `"<event_id>:<ref>"`.
 - Nobody else calls `TriggerPipeline` for pushes.
+
+**Confirmed on 2026-11-18** (#20): git2-codeplane `v0.3.0` ships the relay and `events.v1`. A real push to git-svc, with `GIT2_GITSVC_EVENT_SINKS` pointing at ci-svc, started a pipeline per branch and tag, and a runner ran its jobs.
 
 ### A-03 · Reading `.git2-ci.yml` at a commit
 

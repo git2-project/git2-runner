@@ -32,6 +32,7 @@ const Schema = "ci_svc"
 var requiredTables = []string{
 	Schema + ".runners", Schema + ".registration_tokens", Schema + ".pipelines",
 	Schema + ".jobs", Schema + ".job_log_chunks", Schema + ".secrets", Schema + ".outbox",
+	Schema + ".inbox",
 }
 
 // requiredJobColumns are the ci_svc.jobs columns that later migrations

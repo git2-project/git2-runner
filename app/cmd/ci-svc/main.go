@@ -29,6 +29,7 @@ import (
 
 	"github.com/git2-project/git2-runner/app/internal/cisvc/config"
 	"github.com/git2-project/git2-runner/app/internal/cisvc/db"
+	"github.com/git2-project/git2-runner/app/internal/cisvc/inbox"
 	"github.com/git2-project/git2-runner/app/internal/cisvc/notify"
 	"github.com/git2-project/git2-runner/app/internal/cisvc/pipeline"
 	"github.com/git2-project/git2-runner/app/internal/cisvc/ratelimit"
@@ -123,11 +124,16 @@ func serve(ctx context.Context, log *slog.Logger, cfg config.Config) error {
 	}
 	pipelines := pipeline.NewService(pool, src, secretSvc, hub, log, pipeline.DefaultOptions())
 	go pipelines.RunReaper(ctx, reapEvery)
+	// Pushes arrive through events.v1.EventSink and are turned into
+	// pipelines by the inbox worker (ADR 0010).
+	inboxSvc := inbox.NewService(pool, pipelines, hub, log, inbox.DefaultOptions())
+	go inboxSvc.Run(ctx)
 
 	deps := server.Deps{
 		Pipelines:     pipelines,
 		Runners:       runners.NewService(pool),
 		Secrets:       secretSvc,
+		Inbox:         inboxSvc,
 		RegisterLimit: ratelimit.New(rdb, "register", 10, time.Minute),
 		Log:           log,
 	}
